@@ -27,8 +27,13 @@ spec:
     http: "http://127.0.0.1:7890"
     socks5: "socks5://127.0.0.1:7891"
     listen_ip: "192.168.87.1"
+    listen_port: 3080
     subnet: "192.168.87.0/24"
     upstream_notes: "Upstream = host Clash mixed/HTTP/SOCKS. Host Clash TUN is optional and does not replace this gateway."
+    # 事后用 JSONL 收紧；仅示例域名，按日志复盘增删
+    blocklist:
+      - google-analytics.com
+      - api2.amplitude.com
     logging:
       enabled: true
       # 空则默认 %LOCALAPPDATA%\ClaudeBox\logs\gateway.jsonl

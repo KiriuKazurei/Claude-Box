@@ -1,0 +1,16 @@
+# Example gost relay for Claude Box M2 (edit IPs/ports to match config.yaml).
+# Run roughly: gost -L http://192.168.87.1:3080 -F http://127.0.0.1:7890
+# Full YAML layout depends on gost major version — treat this as documentation.
+# 待验证 on Win11 + Hyper-V Internal NIC.
+
+services:
+  - name: claude-box-in
+    addr: "192.168.87.1:3080"
+    handler:
+      type: http
+    listener:
+      type: tcp
+    forwarder:
+      nodes:
+        - name: clash-http
+          addr: "http://127.0.0.1:7890"

@@ -27,3 +27,11 @@ disks/
 # Gateway connection logs (local only)
 **/ClaudeBox/logs/
 logging.enabled
+
+# Gateway runtime state (local only)
+**/ClaudeBox/gateway/
+gateway.pid
+gost.stdout.log
+gost.stderr.log
+runtime.json
+relay-plan.txt

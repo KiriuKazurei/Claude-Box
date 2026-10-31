@@ -3,7 +3,12 @@
   "$id": "https://claude-box.local/schema/claude-box.schema.json",
   "title": "ClaudeBoxConfig",
   "type": "object",
-  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
   "additionalProperties": false,
   "properties": {
     "apiVersion": {
@@ -16,66 +21,160 @@
     },
     "metadata": {
       "type": "object",
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "additionalProperties": false,
       "properties": {
-        "name": { "type": "string", "minLength": 1 }
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "spec": {
       "type": "object",
-      "required": ["vm", "gateway"],
+      "required": [
+        "vm",
+        "gateway"
+      ],
       "additionalProperties": false,
       "properties": {
         "vm": {
           "type": "object",
-          "required": ["name", "memory_mb"],
+          "required": [
+            "name",
+            "memory_mb"
+          ],
           "additionalProperties": false,
           "properties": {
-            "name": { "type": "string", "minLength": 1 },
-            "memory_mb": { "type": "integer", "minimum": 2048 },
-            "cpus": { "type": "integer", "minimum": 1, "default": 2 },
-            "generation": { "type": "integer", "enum": [1, 2], "default": 2 },
-            "vhd_path": { "type": "string" },
-            "iso_path": { "type": "string" },
-            "template_vhdx": { "type": "string" },
-            "switch_name": { "type": "string", "default": "ClaudeBox-Internal" }
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "memory_mb": {
+              "type": "integer",
+              "minimum": 2048
+            },
+            "cpus": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2
+            },
+            "generation": {
+              "type": "integer",
+              "enum": [
+                1,
+                2
+              ],
+              "default": 2
+            },
+            "vhd_path": {
+              "type": "string"
+            },
+            "iso_path": {
+              "type": "string"
+            },
+            "template_vhdx": {
+              "type": "string"
+            },
+            "switch_name": {
+              "type": "string",
+              "default": "ClaudeBox-Internal"
+            }
           }
         },
         "gateway": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "primary": { "type": "string", "enum": ["http", "socks5"] },
-            "http": { "type": "string" },
-            "socks5": { "type": "string" },
-            "listen_ip": { "type": "string", "default": "192.168.87.1" },
-            "subnet": { "type": "string", "default": "192.168.87.0/24" },
-            "upstream_notes": { "type": "string" },
+            "primary": {
+              "type": "string",
+              "enum": [
+                "http",
+                "socks5"
+              ]
+            },
+            "http": {
+              "type": "string"
+            },
+            "socks5": {
+              "type": "string"
+            },
+            "listen_ip": {
+              "type": "string",
+              "default": "192.168.87.1"
+            },
+            "subnet": {
+              "type": "string",
+              "default": "192.168.87.0/24"
+            },
+            "upstream_notes": {
+              "type": "string"
+            },
             "logging": {
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "enabled": { "type": "boolean", "default": true },
-                "path": { "type": "string" },
-                "max_mb": { "type": "integer", "minimum": 1, "default": 64 }
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "path": {
+                  "type": "string"
+                },
+                "max_mb": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 64
+                }
               }
+            },
+            "listen_port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535,
+              "default": 3080
+            },
+            "blocklist": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "Host suffixes to deny at gateway (logged action=deny). Expand after soak via JSONL."
             }
           },
           "anyOf": [
-            { "required": ["http"] },
-            { "required": ["socks5"] }
+            {
+              "required": [
+                "http"
+              ]
+            },
+            {
+              "required": [
+                "socks5"
+              ]
+            }
           ]
         },
         "visible_dirs": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["host_path"],
+            "required": [
+              "host_path"
+            ],
             "additionalProperties": false,
             "properties": {
-              "host_path": { "type": "string", "minLength": 1 },
-              "read_only": { "type": "boolean", "default": false }
+              "host_path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "read_only": {
+                "type": "boolean",
+                "default": false
+              }
             }
           }
         },
@@ -83,9 +182,18 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "hostname": { "type": "string", "default": "claude-box" },
-            "timezone": { "type": "string", "default": "UTC" },
-            "locale": { "type": "string", "default": "en-US" }
+            "hostname": {
+              "type": "string",
+              "default": "claude-box"
+            },
+            "timezone": {
+              "type": "string",
+              "default": "UTC"
+            },
+            "locale": {
+              "type": "string",
+              "default": "en-US"
+            }
           }
         },
         "guest": {
@@ -96,9 +204,18 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "enabled": { "type": "boolean", "default": true },
-                "workgroup": { "type": "string", "default": "CLAUDEBOX" },
-                "minimal_desktop": { "type": "boolean", "default": true }
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "workgroup": {
+                  "type": "string",
+                  "default": "CLAUDEBOX"
+                },
+                "minimal_desktop": {
+                  "type": "boolean",
+                  "default": true
+                }
               }
             }
           }
@@ -107,8 +224,14 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "exclude_host_system_drive": { "type": "boolean", "default": true },
-            "full_disk": { "type": "boolean", "default": false }
+            "exclude_host_system_drive": {
+              "type": "boolean",
+              "default": true
+            },
+            "full_disk": {
+              "type": "boolean",
+              "default": false
+            }
           }
         }
       }

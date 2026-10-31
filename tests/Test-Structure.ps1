@@ -35,11 +35,20 @@ $required = @(
     'src/ClaudeBox.Control/ClaudeBox.Control.psd1',
     'src/ClaudeBox.Gateway/ClaudeBox.Gateway.psm1',
     'src/ClaudeBox.Gateway/ClaudeBox.Gateway.psd1',
+    'src/ClaudeBox.Gateway/README.md',
+    'src/ClaudeBox.Gateway/samples/gateway.log.example.jsonl',
+    'src/ClaudeBox.Gateway/templates/gost.relay.example.yml',
+    'src/ClaudeBox.Gateway/gateway.upstream.example.json',
     'src/ClaudeBox.Guest/Initialize-ClaudeBoxGuest.ps1',
     'src/ClaudeBox.Guest/Test-ClaudeBoxGuestHealth.ps1',
+    'src/ClaudeBox.Guest/Set-ClaudeBoxGuestNetwork.ps1',
     'scripts/win11/Test-HyperVPrereqs.ps1',
     'scripts/win11/New-ClaudeBoxSwitch.ps1',
-    'scripts/win11/New-ClaudeBoxVM.ps1'
+    'scripts/win11/New-ClaudeBoxVM.ps1',
+    'scripts/win11/Start-ClaudeBoxGateway.ps1',
+    'scripts/win11/Stop-ClaudeBoxGateway.ps1',
+    'scripts/win11/Test-ClaudeBoxDirectEgressBlocked.ps1',
+    'scripts/win11/Set-ClaudeBoxInternalGatewayRouting.md'
 )
 
 foreach ($r in $required) { Assert-Path $r }
@@ -81,6 +90,23 @@ if (-not $cfg.Path -or -not $cfg.Parsed) {
         Write-Host 'FAIL ExcludeHostSystemDrive should default true'
         $failed++
     }
+    if ([int]$cfg.Parsed.ListenPort -ne 3080) {
+        Write-Host ("FAIL ListenPort expected 3080 got {0}" -f $cfg.Parsed.ListenPort)
+        $failed++
+    } else {
+        Write-Host 'OK   ListenPort=3080'
+    }
+    if (-not $cfg.Parsed.LoggingEnabled) {
+        Write-Host 'FAIL LoggingEnabled should be true in example'
+        $failed++
+    }
+    $bl = @($cfg.Parsed.Blocklist)
+    if ($bl.Count -lt 1) {
+        Write-Host 'FAIL Blocklist should parse from example'
+        $failed++
+    } else {
+        Write-Host ("OK   Blocklist count={0}" -f $bl.Count)
+    }
 }
 
 # C: guard
@@ -111,9 +137,11 @@ if ($null -eq $ready) {
 }
 
 $gw = Test-ClaudeBoxGatewayConfig -GatewaySpec @{
-    http    = 'http://127.0.0.1:7890'
-    socks5  = 'socks5://127.0.0.1:7891'
-    primary = 'http'
+    http        = 'http://127.0.0.1:7890'
+    socks5      = 'socks5://127.0.0.1:7891'
+    primary     = 'http'
+    listen_ip   = '192.168.87.1'
+    listen_port = 3080
 }
 if (-not $gw.Ok) {
     Write-Host "FAIL Test-ClaudeBoxGatewayConfig: $($gw.Error)"
@@ -122,7 +150,23 @@ if (-not $gw.Ok) {
     Write-Host 'OK   Test-ClaudeBoxGatewayConfig'
 }
 
-$log = Set-ClaudeBoxGatewayLogging -Enabled $true -Path (Join-Path ([System.IO.Path]::GetTempPath()) 'ClaudeBox-test\gateway.jsonl')
+$runtime = ConvertTo-ClaudeBoxGatewayRuntimeConfig -Parsed $cfg.Parsed
+if ($runtime.GuestProxyUrl -ne 'http://192.168.87.1:3080') {
+    Write-Host "FAIL GuestProxyUrl=$($runtime.GuestProxyUrl)"
+    $failed++
+} else {
+    Write-Host 'OK   ConvertTo-ClaudeBoxGatewayRuntimeConfig'
+}
+
+if (-not (Test-ClaudeBoxGatewayHostBlocked -HostName 'www.google-analytics.com' -Blocklist @('google-analytics.com'))) {
+    Write-Host 'FAIL blocklist suffix match'
+    $failed++
+} else {
+    Write-Host 'OK   Test-ClaudeBoxGatewayHostBlocked'
+}
+
+$logPath = Join-Path ([System.IO.Path]::GetTempPath()) ('ClaudeBox-test-{0}\gateway.jsonl' -f [guid]::NewGuid().ToString('n'))
+$log = Set-ClaudeBoxGatewayLogging -Enabled $true -Path $logPath
 if (-not $log.Enabled) {
     Write-Host 'FAIL Set-ClaudeBoxGatewayLogging'
     $failed++
@@ -130,8 +174,66 @@ if (-not $log.Enabled) {
     Write-Host 'OK   Set-ClaudeBoxGatewayLogging'
 }
 
-$plan = Get-ClaudeBoxFakeEnvPlan -ConfigPath (Join-Path $RepoRoot 'config/config.example.yaml')
-if (-not $plan.Steps -or $plan.Steps.Count -lt 5) {
+$line = Write-ClaudeBoxGatewayLogEntry -Path $logPath -Src '192.168.87.10:1' -DstIp '1.2.3.4' -DstPort 443 `
+    -SniOrHost 'api.example.com' -Proto 'tcp' -Action 'proxy' -UpstreamOk $true -Bytes 100
+if ($line -notmatch '"action":"proxy"' -or $line -notmatch 'sni_or_host') {
+    Write-Host "FAIL Write-ClaudeBoxGatewayLogEntry: $line"
+    $failed++
+} else {
+    Write-Host 'OK   Write-ClaudeBoxGatewayLogEntry'
+}
+
+$deny = Write-ClaudeBoxGatewayLogEntry -Path $logPath -SniOrHost 'evil.telemetry.invalid' -DstPort 443 -Action 'deny' -UpstreamOk $false
+if ($deny -notmatch '"action":"deny"') {
+    Write-Host 'FAIL deny log action'
+    $failed++
+} else {
+    Write-Host 'OK   log action=deny'
+}
+
+$plan = New-ClaudeBoxGatewayRelayPlan -Runtime $runtime
+if ($plan.CommandLine -notmatch 'gost' -or $plan.CommandLine -notmatch '192.168.87.1') {
+    Write-Host "FAIL relay plan: $($plan.CommandLine)"
+    $failed++
+} else {
+    Write-Host ("OK   New-ClaudeBoxGatewayRelayPlan {0}" -f $plan.CommandLine)
+}
+
+$start = Start-ClaudeBoxGateway -Runtime $runtime -SkipProcessStart -WriteStartupLog
+if ($start.Verified -eq $true) {
+    Write-Host 'FAIL Start must not claim Verified=true without Hyper-V'
+    $failed++
+}
+if (-not $start.Saved -or -not (Test-Path -LiteralPath $start.Saved.PlanPath)) {
+    Write-Host 'FAIL Start did not save relay plan'
+    $failed++
+} else {
+    Write-Host 'OK   Start-ClaudeBoxGateway SkipProcessStart saves plan'
+}
+
+$egress = Test-ClaudeBoxDirectEgressBlocked -Mode SelfCheck -Runtime $runtime
+if ($egress.Verified -eq $true) {
+    Write-Host 'FAIL egress helper must not claim Verified'
+    $failed++
+}
+if ($egress.Passed -ne $true) {
+    Write-Host 'FAIL Test-ClaudeBoxDirectEgressBlocked SelfCheck'
+    $failed++
+} else {
+    Write-Host 'OK   Test-ClaudeBoxDirectEgressBlocked SelfCheck'
+}
+
+# Control wiring (SkipProcessStart)
+$wired = Set-ClaudeBoxGatewayUpstream -ConfigPath (Join-Path $RepoRoot 'config/config.example.yaml') -SkipProcessStart
+if (-not $wired.Runtime) {
+    Write-Host 'FAIL Set-ClaudeBoxGatewayUpstream wiring'
+    $failed++
+} else {
+    Write-Host 'OK   Set-ClaudeBoxGatewayUpstream -> Gateway'
+}
+
+$planGuest = Get-ClaudeBoxFakeEnvPlan -ConfigPath (Join-Path $RepoRoot 'config/config.example.yaml')
+if (-not $planGuest.Steps -or $planGuest.Steps.Count -lt 5) {
     Write-Host 'FAIL Get-ClaudeBoxFakeEnvPlan'
     $failed++
 } else {
@@ -154,8 +256,16 @@ try {
 
 $schemaPath = Join-Path $RepoRoot 'config/schema/claude-box.schema.json'
 try {
-    $null = Get-Content -LiteralPath $schemaPath -Raw | ConvertFrom-Json
-    Write-Host 'OK   schema JSON'
+    $schemaObj = Get-Content -LiteralPath $schemaPath -Raw | ConvertFrom-Json
+    if (-not $schemaObj.properties.spec.properties.gateway.properties.listen_port) {
+        Write-Host 'FAIL schema missing listen_port'
+        $failed++
+    } elseif (-not $schemaObj.properties.spec.properties.gateway.properties.blocklist) {
+        Write-Host 'FAIL schema missing blocklist'
+        $failed++
+    } else {
+        Write-Host 'OK   schema JSON (+ listen_port, blocklist)'
+    }
 } catch {
     Write-Host "FAIL schema JSON: $($_.Exception.Message)"
     $failed++
@@ -163,13 +273,24 @@ try {
 
 # MVP keywords in architecture
 $arch = Get-Content -LiteralPath (Join-Path $RepoRoot 'docs/architecture-v0.md') -Raw
-foreach ($kw in @('exclude_host_system_drive', 'gateway.logging', 'Clash', '假', 'M1')) {
+foreach ($kw in @('exclude_host_system_drive', 'gateway.logging', 'Clash', '假', 'M2', 'gost', '待验证')) {
     if ($arch -notmatch [regex]::Escape($kw)) {
         Write-Host "FAIL architecture missing keyword: $kw"
         $failed++
     }
 }
-Write-Host 'OK   architecture MVP keywords'
+Write-Host 'OK   architecture MVP/M2 keywords'
+
+# sample jsonl readable
+$sample = Join-Path $RepoRoot 'src/ClaudeBox.Gateway/samples/gateway.log.example.jsonl'
+$sampleLines = Get-Content -LiteralPath $sample
+if ($sampleLines.Count -lt 2) {
+    Write-Host 'FAIL sample jsonl too short'
+    $failed++
+} else {
+    $null = $sampleLines[0] | ConvertFrom-Json
+    Write-Host 'OK   sample gateway.log.example.jsonl'
+}
 
 if ($failed -gt 0) {
     Write-Host "RESULT: FAILED ($failed)"

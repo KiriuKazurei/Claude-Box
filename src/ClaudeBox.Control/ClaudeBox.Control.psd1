@@ -1,6 +1,6 @@
 @{
     RootModule        = 'ClaudeBox.Control.psm1'
-    ModuleVersion     = '0.1.0'
+    ModuleVersion     = '0.2.0'
     GUID              = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
     Author            = 'Claude Box'
     Description       = 'Host control plane: Hyper-V VM lifecycle, mounts (no host C:), gateway wiring, fake-env plan.'
@@ -8,6 +8,7 @@
     FunctionsToExport = @(
         'Test-ClaudeBoxIsWindowsHost',
         'Get-ClaudeBoxConfig',
+        'Get-ClaudeBoxGatewayBlocklist',
         'Get-ClaudeBoxYamlScalar',
         'Test-ClaudeBoxHostSystemDrivePath',
         'Assert-ClaudeBoxVisibleDirsSafe',

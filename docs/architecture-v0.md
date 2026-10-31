@@ -5,7 +5,7 @@
 - **依赖调研**：[research-v1-runtime.md](./research-v1-runtime.md)（尤其 §2.6 Hyper-V Win、§3 唯一网关）
 - **性质**：产品架构与仓库骨架约定；标「待验证」处禁止当定论
 - **不做**：本文件不声称已在 Hyper-V 上跑通；不 push 远程
-- **状态**：**MVP in progress · 对准 M1（空访客）**
+- **状态**：**MVP in progress · M2（网关硬强制 + 日志）骨架已落地；真 Hyper-V 联调待验证**
 
 ---
 
@@ -208,6 +208,19 @@ MVP：**http 与 socks5 至少一个非空**。
 
 ---
 
+## 4.6 M2 落地说明（2026-10-31）
+
+| 交付 | 路径 | 状态 |
+|---|---|---|
+| 运行时配置 | `ConvertTo-ClaudeBoxGatewayRuntimeConfig` | 已实现（Linux 可测） |
+| JSONL 日志 | `Write-ClaudeBoxGatewayLogEntry`；样例 `src/ClaudeBox.Gateway/samples/` | 已实现；字段含 `action=allow|deny|proxy|deny\|proxy` |
+| 中继 | 优先 **gost**：`Start-ClaudeBoxGateway` / `scripts/win11/Start-ClaudeBoxGateway.ps1` | 无 gost 时只写 plan；进程启动仅 Win11 |
+| 直连验收 | `Test-ClaudeBoxDirectEgressBlocked` | 文档步骤 + SelfCheck；访客 curl **待验证** |
+| 访客路由 | `Set-ClaudeBoxGuestNetwork.ps1` + `scripts/win11/Set-ClaudeBoxInternalGatewayRouting.md` | 脚本齐；真机 **待验证** |
+| blocklist | `gateway.blocklist` | 配置/schema 已加；强制拦截挂到 gost 插件 **待验证**（当前可先记 deny 日志） |
+
+**明确不足**：本仓库变更**不**声称已在真 Hyper-V 上跑通唯一网关。
+
 ## 5. 目录挂载策略
 
 | 策略 | 说明 |
@@ -304,8 +317,8 @@ Claude-Box/
 | 阶段 | 目标 | 完成判据 |
 |---|---|---|
 | **M0 骨架** | 目录、schema、占位模块 | 已完成；结构检查 PASSED |
-| **M1 空访客** ← **当前** | Win11：预检 → Internal 交换机 → **New-ClaudeBoxVM** Gen2 → Start → 进桌面；挂盘策略拒绝宿主 C:；假环境清单就绪 | 无 Claude；可手工装系统；脚本在 Win11 可跑 |
-| **M2 网关硬强制 + 日志** | 出站经网关；直连失败；连接日志可开关落盘；上游可指 Clash | curl/抓包 + 日志样例 |
+| **M1 空访客** | Win11：预检 → Internal 交换机 → **New-ClaudeBoxVM** Gen2 → Start → 进桌面；挂盘策略拒绝宿主 C:；假环境清单就绪 | 骨架完成；真机装系统 **待验证** |
+| **M2 网关硬强制 + 日志** ← **当前** | 出站经网关；直连失败；连接日志可开关落盘；上游可指 Clash；gost 中继计划/启停 | 模块+脚本+样例完成；**真 Hyper-V/gost/Clash 联调待验证** |
 | **M3 Claude + 目录 + 假环境落地** | 访客内 Windows Claude；可见目录；F1–F5 脚本真正改系统 | Computer use **待验证** |
 | **M4 控件 UI 最小** | CLI/GUI：代理、目录、启停透窗、日志路径 | 对齐 SCOPE |
 

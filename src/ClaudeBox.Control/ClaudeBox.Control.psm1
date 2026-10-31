@@ -4,7 +4,8 @@
   Claude Box 宿主机控制面（Hyper-V 编排）。
 
 .DESCRIPTION
-  M1：配置字段抽取、拒绝宿主 C:、New-ClaudeBoxVM（Gen2 + Internal）骨架。
+  M1：配置字段抽取、拒绝宿主 C:、New-ClaudeBoxVM（Gen2 + Internal）。
+  M2：Set-ClaudeBoxGatewayUpstream 接到 Gateway 中继/日志。
   实际 Hyper-V cmdlet 仅在已启用 Hyper-V 的 Win11 上执行；Linux 上可语法解析。
 
 .NOTES
@@ -98,6 +99,41 @@ function Get-ClaudeBoxVisibleDirPaths {
     return [string[]]$paths.ToArray()
 }
 
+
+function Get-ClaudeBoxGatewayBlocklist {
+    <#
+    .SYNOPSIS
+      粗提取 gateway.blocklist 下的域名列表。
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Raw
+    )
+
+    $items = New-Object System.Collections.Generic.List[string]
+    $inList = $false
+    foreach ($line in ($Raw -split '\r?\n')) {
+        if ($line -match '^\s*blocklist:\s*$') {
+            $inList = $true
+            continue
+        }
+        if ($inList) {
+            if ($line -match '^\s*-\s*(.+?)\s*$') {
+                $v = $Matches[1].Trim()
+                if (($v.StartsWith('"') -and $v.EndsWith('"')) -or ($v.StartsWith("'") -and $v.EndsWith("'"))) {
+                    $v = $v.Substring(1, $v.Length - 2)
+                }
+                if (-not [string]::IsNullOrWhiteSpace($v)) { $items.Add($v) }
+                continue
+            }
+            # left the list
+            if ($line -match '^\s*\S') { break }
+        }
+    }
+    return [string[]]$items.ToArray()
+}
+
 function Get-ClaudeBoxConfig {
     <#
     .SYNOPSIS
@@ -180,6 +216,18 @@ function Get-ClaudeBoxConfig {
         Subnet     = Get-ClaudeBoxYamlScalar -Raw $gwBlock -Key 'subnet' -Default '192.168.87.0/24'
         LoggingEnabled = Get-ClaudeBoxYamlBool -Raw $logBlock -Key 'enabled' -Default $true
         LoggingPath = Get-ClaudeBoxYamlScalar -Raw $logBlock -Key 'path' -Default ''
+        LoggingMaxMb = $(
+            $mb = 64
+            [void][int]::TryParse((Get-ClaudeBoxYamlScalar -Raw $logBlock -Key 'max_mb' -Default '64'), [ref]$mb)
+            if ($mb -lt 1) { 64 } else { $mb }
+        )
+        ListenPort = $(
+            $lp = 3080
+            [void][int]::TryParse((Get-ClaudeBoxYamlScalar -Raw $gwBlock -Key 'listen_port' -Default '3080'), [ref]$lp)
+            if ($lp -lt 1 -or $lp -gt 65535) { 3080 } else { $lp }
+        )
+        UpstreamNotes = Get-ClaudeBoxYamlScalar -Raw $gwBlock -Key 'upstream_notes' -Default ''
+        Blocklist = @(Get-ClaudeBoxGatewayBlocklist -Raw $gwBlock)
         Hostname   = Get-ClaudeBoxYamlScalar -Raw $idBlock -Key 'hostname' -Default 'claude-box'
         Timezone   = Get-ClaudeBoxYamlScalar -Raw $idBlock -Key 'timezone' -Default 'UTC'
         Locale     = Get-ClaudeBoxYamlScalar -Raw $idBlock -Key 'locale' -Default 'en-US'
@@ -193,7 +241,7 @@ function Get-ClaudeBoxConfig {
         Path    = (Resolve-Path -LiteralPath $Path).Path
         Raw     = $raw
         Parsed  = $parsed
-        Warning = 'M1: minimal YAML field extract; replace with full parser + schema in M2+.'
+        Warning = 'Minimal YAML field extract; replace with full parser + schema later.'
     }
 }
 
@@ -566,20 +614,29 @@ function Mount-ClaudeBoxVisibleDirs {
 function Set-ClaudeBoxGatewayUpstream {
     <#
     .SYNOPSIS
-      把配置中的 gateway 上游与日志选项应用到宿主侧网关。
+      把配置中的 gateway 上游与日志选项应用到宿主侧网关（调用 ClaudeBox.Gateway）。
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [string] $ConfigPath
+        [string] $ConfigPath,
+        [switch] $SkipProcessStart,
+        [switch] $WriteStartupLog
     )
 
     $cfg = Get-ClaudeBoxConfig -Path $ConfigPath
     $p = $cfg.Parsed
     Write-Host "Gateway upstream http=$($p.GatewayHttp) socks5=$($p.GatewaySocks5) primary=$($p.GatewayPrimary)"
-    Write-Host "ListenIp=$($p.ListenIp) logging.enabled=$($p.LoggingEnabled) path=$($p.LoggingPath)"
+    Write-Host "ListenIp=$($p.ListenIp) ListenPort=$($p.ListenPort) logging.enabled=$($p.LoggingEnabled) path=$($p.LoggingPath)"
     Write-Host 'Clash TUN note: point http/socks5 at host Clash ports; do NOT give guest External switch.'
-    Write-Warning 'TODO(M2): Apply upstream + logging to gateway process; reload listener on Internal IP.'
+
+    $gwMod = Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'ClaudeBox.Gateway') 'ClaudeBox.Gateway.psd1'
+    if (-not (Test-Path -LiteralPath $gwMod)) {
+        throw "ClaudeBox.Gateway module not found near Control: $gwMod"
+    }
+    Import-Module $gwMod -Force
+    $runtime = ConvertTo-ClaudeBoxGatewayRuntimeConfig -Parsed $p
+    return Start-ClaudeBoxGateway -Runtime $runtime -SkipProcessStart:$SkipProcessStart -WriteStartupLog:$WriteStartupLog
 }
 
 function Get-ClaudeBoxFakeEnvPlan {
@@ -615,6 +672,7 @@ function Get-ClaudeBoxFakeEnvPlan {
 Export-ModuleMember -Function @(
     'Test-ClaudeBoxIsWindowsHost',
     'Get-ClaudeBoxConfig',
+    'Get-ClaudeBoxGatewayBlocklist',
     'Get-ClaudeBoxYamlScalar',
     'Test-ClaudeBoxHostSystemDrivePath',
     'Assert-ClaudeBoxVisibleDirsSafe',

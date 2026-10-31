@@ -13,3 +13,13 @@
 .\Initialize-ClaudeBoxGuest.ps1 -Apply   # after review
 .\Test-ClaudeBoxGuestHealth.ps1
 ```
+
+## M2 网络（访客内）
+
+`Set-ClaudeBoxGuestNetwork.ps1`：默认网关 → 盒子 `listen_ip`；系统代理 → `http://listen_ip:listen_port`。
+
+```powershell
+.\Set-ClaudeBoxGuestNetwork.ps1 -GatewayIp 192.168.87.1 -ProxyPort 3080 -GuestIp 192.168.87.10 -Apply
+```
+
+真机效果 **待验证**。说明见 `scripts/win11/Set-ClaudeBoxInternalGatewayRouting.md`。
