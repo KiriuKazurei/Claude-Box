@@ -45,6 +45,13 @@ spec:
     - host_path: "D:\\Projects\\demo"
       read_only: false
 
+  # M3 挂载：主策略 smb_internal（宿主 Internal IP 上 SMB → 访客 net use）
+  # 备选 method: copy_vmfile | enhanced_session_manual
+  mount:
+    method: smb_internal
+    guest_root: "Z:"
+    share_prefix: ClaudeBox
+
   identity:
     hostname: claude-box
     timezone: UTC

@@ -32,12 +32,15 @@ function Get-ClaudeBoxYamlScalar {
     #>
     [CmdletBinding()]
     param(
+        [AllowEmptyString()]
         [Parameter(Mandatory = $true)]
         [string] $Raw,
         [Parameter(Mandatory = $true)]
         [string] $Key,
         [string] $Default = ''
     )
+
+    if ([string]::IsNullOrEmpty($Raw)) { return $Default }
 
     # Match lines like: key: value  or key: "value"  (not nested object starters with only key:)
     $pattern = '(?m)^\s*' + [regex]::Escape($Key) + '\s*:\s*(.+?)\s*$'
@@ -63,6 +66,8 @@ function Get-ClaudeBoxYamlBool {
         [string] $Key,
         [bool] $Default = $false
     )
+
+    if ([string]::IsNullOrEmpty($Raw)) { return $Default }
     $v = Get-ClaudeBoxYamlScalar -Raw $Raw -Key $Key -Default ''
     if ([string]::IsNullOrWhiteSpace($v)) { return $Default }
     switch -Regex ($v.ToLowerInvariant()) {
@@ -79,6 +84,7 @@ function Get-ClaudeBoxVisibleDirPaths {
     #>
     [CmdletBinding()]
     param(
+        [AllowEmptyString()]
         [Parameter(Mandatory = $true)]
         [string] $Raw
     )
@@ -107,6 +113,7 @@ function Get-ClaudeBoxGatewayBlocklist {
     #>
     [CmdletBinding()]
     param(
+        [AllowEmptyString()]
         [Parameter(Mandatory = $true)]
         [string] $Raw
     )
@@ -234,7 +241,29 @@ function Get-ClaudeBoxConfig {
         ExcludeHostSystemDrive = Get-ClaudeBoxYamlBool -Raw $featBlock -Key 'exclude_host_system_drive' -Default $true
         FullDisk   = Get-ClaudeBoxYamlBool -Raw $featBlock -Key 'full_disk' -Default $false
         FakeEnvEnabled = Get-ClaudeBoxYamlBool -Raw $fakeBlock -Key 'enabled' -Default $true
+        Workgroup = Get-ClaudeBoxYamlScalar -Raw $fakeBlock -Key 'workgroup' -Default 'CLAUDEBOX'
+        MinimalDesktop = Get-ClaudeBoxYamlBool -Raw $fakeBlock -Key 'minimal_desktop' -Default $true
         VisibleDirs = @(Get-ClaudeBoxVisibleDirPaths -Raw $raw)
+        MountMethod = $(
+            $mm = ''
+            $mountBlock = ''
+            $mountMatch = [regex]::Match($raw, '(?ms)^\s*mount:\s*\r?\n((?:^[ \t]{2,}.*\r?\n?)*)')
+            if ($mountMatch.Success) { $mountBlock = $mountMatch.Groups[1].Value }
+            $mm = Get-ClaudeBoxYamlScalar -Raw $mountBlock -Key 'method' -Default 'smb_internal'
+            if ([string]::IsNullOrWhiteSpace($mm)) { 'smb_internal' } else { $mm }
+        )
+        GuestMountRoot = $(
+            $mountBlock2 = ''
+            $mountMatch2 = [regex]::Match($raw, '(?ms)^\s*mount:\s*\r?\n((?:^[ \t]{2,}.*\r?\n?)*)')
+            if ($mountMatch2.Success) { $mountBlock2 = $mountMatch2.Groups[1].Value }
+            Get-ClaudeBoxYamlScalar -Raw $mountBlock2 -Key 'guest_root' -Default 'Z:'
+        )
+        HostSharePrefix = $(
+            $mountBlock3 = ''
+            $mountMatch3 = [regex]::Match($raw, '(?ms)^\s*mount:\s*\r?\n((?:^[ \t]{2,}.*\r?\n?)*)')
+            if ($mountMatch3.Success) { $mountBlock3 = $mountMatch3.Groups[1].Value }
+            Get-ClaudeBoxYamlScalar -Raw $mountBlock3 -Key 'share_prefix' -Default 'ClaudeBox'
+        )
     }
 
     return [pscustomobject]@{
@@ -576,14 +605,53 @@ function Stop-ClaudeBoxVM {
     }
 }
 
-function Mount-ClaudeBoxVisibleDirs {
+function Get-ClaudeBoxVisibleDirEntries {
     <#
     .SYNOPSIS
-      将配置中的 visible_dirs 暴露进访客；默认拒绝宿主 C:。
+      提取 visible_dirs 条目（host_path + read_only）。
+    #>
+    [CmdletBinding()]
+    param(
+        [AllowEmptyString()]
+        [Parameter(Mandatory = $true)]
+        [string] $Raw
+    )
 
-    .NOTES
-      机制（Enhanced Session 共享 / SMB / 其它）待验证；M3 实现真正挂载。
-      M1：校验路径安全并打印将要挂载的列表。
+    $entries = New-Object System.Collections.Generic.List[object]
+    $lines = $Raw -split '\r?\n'
+    $i = 0
+    while ($i -lt $lines.Count) {
+        $line = $lines[$i]
+        if ($line -match '^\s*-\s*host_path:\s*(.+?)\s*$') {
+            $v = $Matches[1].Trim()
+            if (($v.StartsWith('"') -and $v.EndsWith('"')) -or ($v.StartsWith("'") -and $v.EndsWith("'"))) {
+                $v = $v.Substring(1, $v.Length - 2)
+            }
+            $v = $v -replace '\\\\', '\'
+            $ro = $false
+            if (($i + 1) -lt $lines.Count -and $lines[$i + 1] -match '^\s*read_only:\s*(.+?)\s*$') {
+                $rv = $Matches[1].Trim().ToLowerInvariant()
+                $ro = ($rv -eq 'true' -or $rv -eq 'yes' -or $rv -eq '1')
+            }
+            if (-not [string]::IsNullOrWhiteSpace($v)) {
+                $entries.Add([pscustomobject]@{ HostPath = $v; ReadOnly = $ro })
+            }
+        }
+        $i++
+    }
+    return @($entries.ToArray())
+}
+
+function New-ClaudeBoxMountPlan {
+    <#
+    .SYNOPSIS
+      根据配置生成可见目录挂载计划（默认 smb_internal；拒绝宿主 C:）。
+
+    .DESCRIPTION
+      主策略 **smb_internal**：宿主机在 ClaudeBox-Internal 网上为每个可见目录建 SMB 共享，
+      访客用 net use 映射盘符。备选：
+      - copy_vmfile：Guest Services Copy-VMFile（适合推脚本，不适合大目录持续同步）
+      - enhanced_session_manual：vmconnect 勾选驱动器（控件只出说明，不自动配置）
     #>
     [CmdletBinding()]
     param(
@@ -594,22 +662,275 @@ function Mount-ClaudeBoxVisibleDirs {
     $cfg = Get-ClaudeBoxConfig -Path $ConfigPath
     Assert-ClaudeBoxVisibleDirsSafe -Parsed $cfg.Parsed
 
+    $method = [string]$cfg.Parsed.MountMethod
+    if ([string]::IsNullOrWhiteSpace($method)) { $method = 'smb_internal' }
+    $method = $method.ToLowerInvariant()
+    $prefix = [string]$cfg.Parsed.HostSharePrefix
+    if ([string]::IsNullOrWhiteSpace($prefix)) { $prefix = 'ClaudeBox' }
+    $guestRoot = [string]$cfg.Parsed.GuestMountRoot
+    if ([string]::IsNullOrWhiteSpace($guestRoot)) { $guestRoot = 'Z:' }
+    $startLetter = $guestRoot.Substring(0, 1).ToUpperInvariant()
+    if ($startLetter -notmatch '^[D-Z]$') { $startLetter = 'Z' }
+
+    $listenIp = [string]$cfg.Parsed.ListenIp
+    if ([string]::IsNullOrWhiteSpace($listenIp)) { $listenIp = '192.168.87.1' }
+
+    $entriesIn = @(Get-ClaudeBoxVisibleDirEntries -Raw $cfg.Raw)
+    if ($entriesIn.Count -eq 0 -and $cfg.Parsed.VisibleDirs) {
+        foreach ($p in @($cfg.Parsed.VisibleDirs)) {
+            $entriesIn += [pscustomobject]@{ HostPath = [string]$p; ReadOnly = $false }
+        }
+    }
+
+    $letterCode = [int][char]$startLetter
+    $planEntries = New-Object System.Collections.Generic.List[object]
+    $idx = 0
+    foreach ($e in $entriesIn) {
+        $hp = [string]$e.HostPath
+        if ([string]::IsNullOrWhiteSpace($hp)) { continue }
+        if ($cfg.Parsed.ExcludeHostSystemDrive -and (Test-ClaudeBoxHostSystemDrivePath -HostPath $hp)) {
+            throw "Refusing host system drive in mount plan: $hp"
+        }
+        $norm = $hp.TrimEnd('\', '/').Replace('/', '\')
+        $leaf = ($norm -split '[\\/]')[-1]
+        if ([string]::IsNullOrWhiteSpace($leaf) -or $leaf -match '^[A-Za-z]:$') { $leaf = "dir$idx" }
+        $safe = ($leaf -replace '[^A-Za-z0-9_\-]', '_')
+        if ($safe.Length -gt 40) { $safe = $safe.Substring(0, 40) }
+        $shareName = "{0}_{1}" -f $prefix, $safe
+        $drive = '{0}:' -f [char]$letterCode
+        # Prefer high letters descending if starting at Z
+        if ($startLetter -eq 'Z') {
+            $drive = '{0}:' -f [char]([int][char]'Z' - $idx)
+        } else {
+            $drive = '{0}:' -f [char]($letterCode + $idx)
+        }
+        $unc = '\\{0}\{1}' -f $listenIp, $shareName
+        $planEntries.Add([pscustomobject]@{
+            name       = $safe
+            host_path  = $hp
+            read_only  = [bool]$e.ReadOnly
+            share_name = $shareName
+            guest_unc  = $unc
+            guest_drive = $drive
+        })
+        $idx++
+    }
+
+    return [pscustomobject]@{
+        version                    = 1
+        method                     = $method
+        generated_at               = (Get-Date).ToString('o')
+        exclude_host_system_drive  = [bool]$cfg.Parsed.ExcludeHostSystemDrive
+        listen_ip                  = $listenIp
+        vm_name                    = $cfg.Parsed.VmName
+        guest_script               = 'src/ClaudeBox.Guest/Mount-ClaudeBoxGuestShares.ps1'
+        notes                      = @(
+            'Primary: SMB shares on host Internal IP; guest maps drive letters.',
+            'Enhanced Session drive redirect is manual fallback (vmconnect).',
+            'Copy-VMFile is for pushing this plan/scripts, not large live trees.'
+        )
+        entries                    = $planEntries.ToArray()
+        verified                   = $false
+    }
+}
+
+function Save-ClaudeBoxMountPlan {
+    <#
+    .SYNOPSIS
+      将挂载计划写成 JSON（默认 %LOCALAPPDATA%\ClaudeBox\mounts\mount-plan.json）。
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        $Plan,
+        [string] $Path = ''
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        $base = $env:LOCALAPPDATA
+        if ([string]::IsNullOrWhiteSpace($base)) {
+            $base = Join-Path ([System.IO.Path]::GetTempPath()) 'ClaudeBox'
+        } else {
+            $base = Join-Path $base 'ClaudeBox'
+        }
+        $dir = Join-Path $base 'mounts'
+        $Path = Join-Path $dir 'mount-plan.json'
+    }
+    $dirName = Split-Path -Parent $Path
+    if (-not (Test-Path -LiteralPath $dirName)) {
+        New-Item -ItemType Directory -Path $dirName -Force | Out-Null
+    }
+    ($Plan | ConvertTo-Json -Depth 6) | Set-Content -LiteralPath $Path -Encoding UTF8
+    return $Path
+}
+
+function Publish-ClaudeBoxGuestBundle {
+    <#
+    .SYNOPSIS
+      把 Guest 脚本 + mount-plan 准备成可拷进访客的目录；可选 Copy-VMFile（Win11）。
+
+    .NOTES
+      Copy-VMFile 需启用 Guest Service Interface；真机待验证。
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $ConfigPath,
+        [string] $PlanPath = '',
+        [string] $StagingDir = '',
+        [switch] $CopyToVm
+    )
+
+    $cfg = Get-ClaudeBoxConfig -Path $ConfigPath
+    $guestSrc = Join-Path (Split-Path -Parent $PSScriptRoot) 'ClaudeBox.Guest'
+    if (-not $StagingDir) {
+        $base = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'ClaudeBox' } else { Join-Path ([IO.Path]::GetTempPath()) 'ClaudeBox' }
+        $StagingDir = Join-Path $base 'guest-bundle'
+    }
+    if (Test-Path -LiteralPath $StagingDir) {
+        Remove-Item -LiteralPath $StagingDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    New-Item -ItemType Directory -Path $StagingDir -Force | Out-Null
+    Copy-Item -Path (Join-Path $guestSrc '*') -Destination $StagingDir -Recurse -Force
+    if (-not $PlanPath) {
+        $plan = New-ClaudeBoxMountPlan -ConfigPath $ConfigPath
+        $PlanPath = Save-ClaudeBoxMountPlan -Plan $plan
+    }
+    Copy-Item -LiteralPath $PlanPath -Destination (Join-Path $StagingDir 'mount-plan.json') -Force
+
+    $result = [pscustomobject]@{
+        StagingDir = $StagingDir
+        PlanPath   = $PlanPath
+        VmName     = $cfg.Parsed.VmName
+        CopiedToVm = $false
+        Verified   = $false
+        Note       = 'Copy folder into guest via Enhanced Session / SMB / Copy-VMFile'
+    }
+
+    if ($CopyToVm) {
+        if (-not (Test-ClaudeBoxIsWindowsHost)) {
+            Write-Warning 'CopyToVm ignored: not Windows host'
+            return $result
+        }
+        try {
+            Enable-VMIntegrationService -VMName $cfg.Parsed.VmName -Name 'Guest Service Interface' -ErrorAction SilentlyContinue
+            $dest = 'C:\ClaudeBox'
+            # Copy-VMFile copies a file; create a zip for one-shot
+            $zip = Join-Path (Split-Path $StagingDir) 'guest-bundle.zip'
+            if (Test-Path $zip) { Remove-Item $zip -Force }
+            Compress-Archive -Path (Join-Path $StagingDir '*') -DestinationPath $zip -Force
+            Copy-VMFile -Name $cfg.Parsed.VmName -SourcePath $zip -DestinationPath ($dest + '\guest-bundle.zip') -FileSource Host -CreateFullPath -ErrorAction Stop
+            $result.CopiedToVm = $true
+            $result.Note = "Copied zip to guest $dest\guest-bundle.zip — expand inside guest (待验证)"
+        } catch {
+            Write-Warning "Copy-VMFile failed: $($_.Exception.Message)"
+            $result.Note = $_.Exception.Message
+        }
+    }
+    return $result
+}
+
+function Mount-ClaudeBoxVisibleDirs {
+    <#
+    .SYNOPSIS
+      将配置中的 visible_dirs 暴露进访客；默认拒绝宿主 C:。
+
+    .DESCRIPTION
+      M3 主路径：生成 SMB 挂载计划并在宿主机创建共享（-ApplyShares）。
+      访客侧执行 Mount-ClaudeBoxGuestShares.ps1 -PlanPath mount-plan.json -Apply。
+
+    .PARAMETER ApplyShares
+      在 Windows 宿主机上 New-SmbShare（需管理员）；Linux / 无权限则只写计划。
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $ConfigPath,
+        [string] $PlanOutPath = '',
+        [switch] $ApplyShares,
+        [switch] $PublishBundle
+    )
+
+    $cfg = Get-ClaudeBoxConfig -Path $ConfigPath
+    Assert-ClaudeBoxVisibleDirsSafe -Parsed $cfg.Parsed
+
     if ($cfg.Parsed.FullDisk) {
         Write-Warning 'features.full_disk=true: environment spoofing weakened; host C: still blocked if exclude_host_system_drive=true.'
     }
 
-    $dirs = @($cfg.Parsed.VisibleDirs)
-    if ($dirs.Count -eq 0) {
+    $plan = New-ClaudeBoxMountPlan -ConfigPath $ConfigPath
+    $saved = Save-ClaudeBoxMountPlan -Plan $plan -Path $PlanOutPath
+    Write-Host ("Mount plan method={0} entries={1} -> {2}" -f $plan.method, @($plan.entries).Count, $saved)
+
+    if (@($plan.entries).Count -eq 0) {
         Write-Host 'No visible_dirs configured; guest will not see host project files.'
-        return
+        return [pscustomobject]@{ PlanPath = $saved; Plan = $plan; SharesApplied = $false; Verified = $false }
     }
 
-    Write-Host 'Visible dirs (mount mechanism TODO M3):'
-    foreach ($d in $dirs) {
-        Write-Host "  - $d"
+    foreach ($e in @($plan.entries)) {
+        Write-Host ("  - {0} => {1} ({2}) ro={3}" -f $e.host_path, $e.guest_drive, $e.guest_unc, $e.read_only)
     }
-    Write-Warning 'TODO(M3): Actually mount into guest (Enhanced Session share / SMB / other).'
+
+    $sharesApplied = $false
+    if ($ApplyShares) {
+        if (-not (Test-ClaudeBoxIsWindowsHost)) {
+            Write-Warning 'ApplyShares: not Windows — plan only (dry-run skeleton).'
+        } elseif ($plan.method -ne 'smb_internal') {
+            Write-Warning "ApplyShares only implements smb_internal; method=$($plan.method)"
+            if ($plan.method -eq 'enhanced_session_manual') {
+                Write-Host 'Open vmconnect → Enhanced Session → Local resources → Drives; do not redirect host C:.'
+            }
+        } else {
+            foreach ($e in @($plan.entries)) {
+                $hp = $e.host_path
+                if (-not (Test-Path -LiteralPath $hp)) {
+                    Write-Warning "Host path missing (share skipped): $hp"
+                    continue
+                }
+                if ($PSCmdlet.ShouldProcess($e.share_name, "New-SmbShare $hp")) {
+                    try {
+                        if (Get-Command Get-SmbShare -ErrorAction SilentlyContinue) {
+                            $existing = Get-SmbShare -Name $e.share_name -ErrorAction SilentlyContinue
+                            if ($existing) {
+                                Write-Host ("Share exists: {0}" -f $e.share_name)
+                            } else {
+                                New-SmbShare -Name $e.share_name -Path $hp -FullAccess 'Everyone' -ErrorAction Stop | Out-Null
+                                Write-Host ("Created SMB share {0} -> {1}" -f $e.share_name, $hp)
+                            }
+                            if ($e.read_only -and (Get-Command Grant-SmbShareAccess -ErrorAction SilentlyContinue)) {
+                                # Best-effort: revoke change rights later; MVP FullAccess + guest discipline
+                                Write-Host 'read_only=true: prefer guest mapping discipline; tighten SMB ACL in M4.'
+                            }
+                            $sharesApplied = $true
+                        } else {
+                            Write-Warning 'SMB cmdlets unavailable; install FS-SMBShare or create share manually.'
+                        }
+                    } catch {
+                        Write-Warning "New-SmbShare $($e.share_name): $($_.Exception.Message)"
+                    }
+                }
+            }
+        }
+    } else {
+        Write-Host 'Shares not applied (pass -ApplyShares on Win11 admin). Guest: Mount-ClaudeBoxGuestShares.ps1 -Apply'
+    }
+
+    $bundle = $null
+    if ($PublishBundle) {
+        $bundle = Publish-ClaudeBoxGuestBundle -ConfigPath $ConfigPath -PlanPath $saved
+        Write-Host ("Guest bundle staged: {0}" -f $bundle.StagingDir)
+    }
+
+    return [pscustomobject]@{
+        PlanPath      = $saved
+        Plan          = $plan
+        SharesApplied = $sharesApplied
+        Bundle        = $bundle
+        Verified      = $false
+        Note          = 'Hyper-V SMB/Copy-VMFile 待验证'
+    }
 }
+
 
 function Set-ClaudeBoxGatewayUpstream {
     <#
@@ -653,19 +974,23 @@ function Get-ClaudeBoxFakeEnvPlan {
     $cfg = Get-ClaudeBoxConfig -Path $ConfigPath
     $p = $cfg.Parsed
     return [pscustomobject]@{
-        Enabled   = $true
-        Hostname  = $p.Hostname
-        Timezone  = $p.Timezone
-        Locale    = $p.Locale
-        Steps     = @(
+        Enabled        = [bool]$p.FakeEnvEnabled
+        Hostname       = $p.Hostname
+        Timezone       = $p.Timezone
+        Locale         = $p.Locale
+        Workgroup      = $p.Workgroup
+        MinimalDesktop = [bool]$p.MinimalDesktop
+        Steps          = @(
             'F1 Rename-Computer / hostname',
             'F2 tzutil set timezone',
             'F3 Set-WinSystemLocale / culture',
             'F4 Workgroup align (guest.fake_env.workgroup)',
             'F5 Confirm host C: not mounted',
-            'F6 Optional minimal desktop'
+            'F6 Optional minimal desktop',
+            'F7 Gateway network (Set-ClaudeBoxGuestNetwork)'
         )
-        GuestScript = 'src/ClaudeBox.Guest/Initialize-ClaudeBoxGuest.ps1'
+        GuestScript    = 'src/ClaudeBox.Guest/Initialize-ClaudeBoxGuest.ps1'
+        ApplyExample   = ".\Initialize-ClaudeBoxGuest.ps1 -IdentityHostname $($p.Hostname) -Timezone $($p.Timezone) -Locale $($p.Locale) -Workgroup $($p.Workgroup) -Apply"
     }
 }
 
@@ -674,6 +999,7 @@ Export-ModuleMember -Function @(
     'Get-ClaudeBoxConfig',
     'Get-ClaudeBoxGatewayBlocklist',
     'Get-ClaudeBoxYamlScalar',
+    'Get-ClaudeBoxVisibleDirEntries',
     'Test-ClaudeBoxHostSystemDrivePath',
     'Assert-ClaudeBoxVisibleDirsSafe',
     'Test-ClaudeBoxHyperVReady',
@@ -681,6 +1007,9 @@ Export-ModuleMember -Function @(
     'New-ClaudeBoxVM',
     'Start-ClaudeBoxVM',
     'Stop-ClaudeBoxVM',
+    'New-ClaudeBoxMountPlan',
+    'Save-ClaudeBoxMountPlan',
+    'Publish-ClaudeBoxGuestBundle',
     'Mount-ClaudeBoxVisibleDirs',
     'Set-ClaudeBoxGatewayUpstream',
     'Get-ClaudeBoxFakeEnvPlan'

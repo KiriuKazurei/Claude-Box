@@ -42,7 +42,10 @@ $required = @(
     'src/ClaudeBox.Guest/Initialize-ClaudeBoxGuest.ps1',
     'src/ClaudeBox.Guest/Test-ClaudeBoxGuestHealth.ps1',
     'src/ClaudeBox.Guest/Set-ClaudeBoxGuestNetwork.ps1',
+    'src/ClaudeBox.Guest/Install-ClaudeBoxWindowsClaude.ps1',
+    'src/ClaudeBox.Guest/Mount-ClaudeBoxGuestShares.ps1',
     'scripts/win11/Test-HyperVPrereqs.ps1',
+    'scripts/win11/Mount-ClaudeBoxVisibleDirs.ps1',
     'scripts/win11/New-ClaudeBoxSwitch.ps1',
     'scripts/win11/New-ClaudeBoxVM.ps1',
     'scripts/win11/Start-ClaudeBoxGateway.ps1',
@@ -240,6 +243,101 @@ if (-not $planGuest.Steps -or $planGuest.Steps.Count -lt 5) {
     Write-Host 'OK   Get-ClaudeBoxFakeEnvPlan'
 }
 
+# M3 mount plan (Linux dry-run)
+try {
+    $m = Mount-ClaudeBoxVisibleDirs -ConfigPath (Join-Path $RepoRoot 'config/config.example.yaml')
+    if (-not $m.PlanPath -or -not (Test-Path -LiteralPath $m.PlanPath)) {
+        Write-Host 'FAIL Mount-ClaudeBoxVisibleDirs did not save plan'
+        $failed++
+    } else {
+        $planJson = Get-Content -LiteralPath $m.PlanPath -Raw | ConvertFrom-Json
+        if ($planJson.method -ne 'smb_internal') {
+            Write-Host ("FAIL mount method={0}" -f $planJson.method)
+            $failed++
+        } elseif (@($planJson.entries).Count -lt 1) {
+            Write-Host 'FAIL mount plan entries empty'
+            $failed++
+        } else {
+            $bad = @($planJson.entries | Where-Object { $_.host_path -match '^[cC]:\?$' })
+            if ($bad.Count -gt 0) {
+                Write-Host 'FAIL mount plan contains host C:'
+                $failed++
+            } else {
+                Write-Host ("OK   Mount-ClaudeBoxVisibleDirs plan entries={0} method={1}" -f @($planJson.entries).Count, $planJson.method)
+            }
+        }
+    }
+} catch {
+    Write-Host "FAIL Mount-ClaudeBoxVisibleDirs: $($_.Exception.Message)"
+    $failed++
+}
+
+# Reject C: via mount plan builder
+try {
+    $tmpCfg = Join-Path ([IO.Path]::GetTempPath()) ('claude-box-bad-{0}.yaml' -f [guid]::NewGuid().ToString('n'))
+    $badYaml = @"
+apiVersion: claude-box/v1alpha1
+kind: Box
+metadata:
+  name: bad
+spec:
+  vm:
+    name: ClaudeBox-Win
+    memory_mb: 8192
+  gateway:
+    http: "http://127.0.0.1:7890"
+  visible_dirs:
+    - host_path: "C:\\"
+      read_only: false
+  features:
+    exclude_host_system_drive: true
+"@
+    Set-Content -LiteralPath $tmpCfg -Value $badYaml -Encoding UTF8
+    try {
+        $null = New-ClaudeBoxMountPlan -ConfigPath $tmpCfg
+        Write-Host 'FAIL New-ClaudeBoxMountPlan should reject C:\'
+        $failed++
+    } catch {
+        if ($_.Exception.Message -match 'system drive|C:') {
+            Write-Host 'OK   New-ClaudeBoxMountPlan rejects C:\'
+        } else {
+            Write-Host "FAIL unexpected throw: $($_.Exception.Message)"
+            $failed++
+        }
+    } finally {
+        Remove-Item -LiteralPath $tmpCfg -Force -ErrorAction SilentlyContinue
+    }
+} catch {
+    Write-Host "FAIL C: mount plan reject harness: $($_.Exception.Message)"
+    $failed++
+}
+
+# Fake env plan includes workgroup
+if (-not $planGuest.Workgroup) {
+    Write-Host 'FAIL FakeEnvPlan missing Workgroup'
+    $failed++
+} else {
+    Write-Host ("OK   FakeEnvPlan Workgroup={0}" -f $planGuest.Workgroup)
+}
+
+# Guest init dry-run on this host (Write-Host -> information stream)
+$guestInit = Join-Path $RepoRoot 'src/ClaudeBox.Guest/Initialize-ClaudeBoxGuest.ps1'
+$initOut = & $guestInit -IdentityHostname 'claude-box' -Timezone UTC -Locale en-US *>&1 | Out-String
+if ($initOut -notmatch 'DRY-RUN') {
+    Write-Host 'FAIL Initialize-ClaudeBoxGuest dry-run output unexpected'
+    $failed++
+} else {
+    Write-Host 'OK   Initialize-ClaudeBoxGuest dry-run'
+}
+
+$guide = & (Join-Path $RepoRoot 'src/ClaudeBox.Guest/Install-ClaudeBoxWindowsClaude.ps1') -ShowGuide *>&1 | Out-String
+if ($guide -notmatch 'Add-AppxPackage' -or $guide -notmatch 'msix') {
+    Write-Host 'FAIL Install-ClaudeBoxWindowsClaude guide'
+    $failed++
+} else {
+    Write-Host 'OK   Install-ClaudeBoxWindowsClaude guide'
+}
+
 # New-ClaudeBoxVM on Linux should throw Windows requirement after config+guard
 try {
     New-ClaudeBoxVM -ConfigPath (Join-Path $RepoRoot 'config/config.example.yaml')
@@ -263,8 +361,11 @@ try {
     } elseif (-not $schemaObj.properties.spec.properties.gateway.properties.blocklist) {
         Write-Host 'FAIL schema missing blocklist'
         $failed++
+    } elseif (-not $schemaObj.properties.spec.properties.mount) {
+        Write-Host 'FAIL schema missing mount'
+        $failed++
     } else {
-        Write-Host 'OK   schema JSON (+ listen_port, blocklist)'
+        Write-Host 'OK   schema JSON (+ listen_port, blocklist, mount)'
     }
 } catch {
     Write-Host "FAIL schema JSON: $($_.Exception.Message)"
@@ -273,13 +374,13 @@ try {
 
 # MVP keywords in architecture
 $arch = Get-Content -LiteralPath (Join-Path $RepoRoot 'docs/architecture-v0.md') -Raw
-foreach ($kw in @('exclude_host_system_drive', 'gateway.logging', 'Clash', '假', 'M2', 'gost', '待验证')) {
+foreach ($kw in @('exclude_host_system_drive', 'gateway.logging', 'Clash', '假', 'M3', 'smb_internal', 'gost', '待验证')) {
     if ($arch -notmatch [regex]::Escape($kw)) {
         Write-Host "FAIL architecture missing keyword: $kw"
         $failed++
     }
 }
-Write-Host 'OK   architecture MVP/M2 keywords'
+Write-Host 'OK   architecture MVP/M3 keywords'
 
 # sample jsonl readable
 $sample = Join-Path $RepoRoot 'src/ClaudeBox.Gateway/samples/gateway.log.example.jsonl'

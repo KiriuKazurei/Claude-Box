@@ -5,7 +5,7 @@
 - **依赖调研**：[research-v1-runtime.md](./research-v1-runtime.md)（尤其 §2.6 Hyper-V Win、§3 唯一网关）
 - **性质**：产品架构与仓库骨架约定；标「待验证」处禁止当定论
 - **不做**：本文件不声称已在 Hyper-V 上跑通；不 push 远程
-- **状态**：**MVP in progress · M2（网关硬强制 + 日志）骨架已落地；真 Hyper-V 联调待验证**
+- **状态**：**MVP in progress · M3（Claude + 挂载 + 假环境落地）骨架已落地；真 Hyper-V / Claude / SMB 联调待验证**
 
 ---
 
@@ -230,8 +230,22 @@ MVP：**http 与 socks5 至少一个非空**。
 | **允许** | 非系统数据盘（如 `D:\...`）、用户显式列出的项目目录（即使路径在其它盘） |
 | **全盘** | `features.full_disk: true` 非默认；开启须显式，且**仍不得**在 exclude 为 true 时偷挂 `C:`；控件警告伪装削弱 |
 | **假 C 语义** | 「假 C」= 访客自己的系统盘 + `guest.fake_env` / `identity`，**不是**把宿主 C 映射后改名 |
-| **机制** | Enhanced Session 共享 / SMB / 其它 —— **待验证**（M3） |
-| **权限** | 每条目 `read_only`；MVP 可先读写再收紧 |
+| **机制（M3 已定主路径）** | **`smb_internal`**：宿主在 Internal IP 上 `New-SmbShare`，访客 `Mount-ClaudeBoxGuestShares.ps1` / `net use`。计划 JSON：`New-ClaudeBoxMountPlan` / `Mount-ClaudeBoxVisibleDirs` |
+| **备选** | `copy_vmfile`（Guest Services 推 bundle/计划，不适大树同步）；`enhanced_session_manual`（vmconnect 勾盘，控件只说明）—— 真机体验 **待验证** |
+| **权限** | 每条目 `read_only`；MVP SMB 可先 Everyone 再收紧 ACL（M4） |
+
+## 5.1 M3 落地说明（2026-10-31）
+
+| 交付 | 路径 | 状态 |
+|---|---|---|
+| 假环境 Apply | `src/ClaudeBox.Guest/Initialize-ClaudeBoxGuest.ps1 -Apply` | 脚本完整；非 Win dry-run；真机改名/时区 **待验证** |
+| Claude 安装 | `Install-ClaudeBoxWindowsClaude.ps1`（MSIX URL + Add-AppxPackage / Provisioned） | 指引+可选下载/安装；**不** vendoring 安装包；Computer use **待验证** |
+| 挂载计划 | `New-ClaudeBoxMountPlan` / `Mount-ClaudeBoxVisibleDirs` / `scripts/win11/Mount-ClaudeBoxVisibleDirs.ps1` | 拒宿主 C:；写 JSON；`-ApplyShares` 建 SMB |
+| 访客映射 | `Mount-ClaudeBoxGuestShares.ps1` | net use；真机 **待验证** |
+| Guest bundle | `Publish-ClaudeBoxGuestBundle`（可选 Copy-VMFile） | 暂存脚本+plan；Copy-VMFile **待验证** |
+| 健康检查 | `Test-ClaudeBoxGuestHealth.ps1` | hostname/tz/locale、Claude 进程、挂载、宿主 C 启发式 |
+
+**明确不足**：不声称已在真 Hyper-V 访客内装好 Claude 或挂载已通。
 
 ---
 
@@ -241,13 +255,13 @@ MVP：**http 与 socks5 至少一个非空**。
 
 | 步骤 | 动作 | 配置键 | 状态 |
 |---|---|---|---|
-| F1 | 设 hostname / 计算机名 | `identity.hostname` | M1 清单 / M3 落地 |
-| F2 | 设时区 | `identity.timezone`（如 `UTC`） | 同上 |
-| F3 | 设系统区域 / 语言 | `identity.locale` | 同上 |
-| F4 | 工作组 / 显示名对齐 | `guest.fake_env.workgroup` 等 | 占位 |
-| F5 | 不挂宿主用户配置与宿主 `C:` | 挂盘策略 | 流程约束 |
-| F6 | （可选）显示「干净」桌面/少装宿主痕迹软件 | `guest.fake_env.minimal_desktop` | 占位 |
-| F7 | 网关拦遥测域 + 日志复盘 | `gateway.logging` + blocklist | M2+ |
+| F1 | 设 hostname / 计算机名 | `identity.hostname` | **M3**：`Initialize-ClaudeBoxGuest -Apply` → Rename-Computer |
+| F2 | 设时区 | `identity.timezone`（如 `UTC`） | **M3**：tzutil /s |
+| F3 | 设系统区域 / 语言 | `identity.locale` | **M3**：Set-WinSystemLocale / Set-Culture |
+| F4 | 工作组对齐 | `guest.fake_env.workgroup` | **M3**：Add-Computer -WorkGroupName（失败则告警） |
+| F5 | 不挂宿主 `C:` | `exclude_host_system_drive` + 挂载计划护栏 | **M3** 流程 + health 启发式 |
+| F6 | （可选）干净桌面 | `guest.fake_env.minimal_desktop` | 配置位；桌面清理仍占位 |
+| F7 | 网关拦遥测 + 日志 | `gateway.logging` + blocklist | M2+ |
 
 完整伪造硬件指纹很难；VM 已有独立 SMBIOS。目标是 **大幅降低** 穿透，不是绝对隔绝。
 
@@ -278,6 +292,9 @@ MVP：**http 与 socks5 至少一个非空**。
 | `spec.gateway.logging` | enabled, path, max_mb（可选） |
 | `spec.gateway.upstream_notes` | 可选说明（如 Clash） |
 | `spec.visible_dirs[]` | host_path, read_only |
+| `spec.mount.method` | `smb_internal`（默认）/ `copy_vmfile` / `enhanced_session_manual` |
+| `spec.mount.guest_root` | 起始盘符，默认 `Z:` |
+| `spec.mount.share_prefix` | SMB 前缀，默认 `ClaudeBox` |
 | `spec.features.exclude_host_system_drive` | 默认 `true` |
 | `spec.features.full_disk` | 默认 `false` |
 | `spec.identity.*` | hostname, timezone, locale |
@@ -318,8 +335,8 @@ Claude-Box/
 |---|---|---|
 | **M0 骨架** | 目录、schema、占位模块 | 已完成；结构检查 PASSED |
 | **M1 空访客** | Win11：预检 → Internal 交换机 → **New-ClaudeBoxVM** Gen2 → Start → 进桌面；挂盘策略拒绝宿主 C:；假环境清单就绪 | 骨架完成；真机装系统 **待验证** |
-| **M2 网关硬强制 + 日志** ← **当前** | 出站经网关；直连失败；连接日志可开关落盘；上游可指 Clash；gost 中继计划/启停 | 模块+脚本+样例完成；**真 Hyper-V/gost/Clash 联调待验证** |
-| **M3 Claude + 目录 + 假环境落地** | 访客内 Windows Claude；可见目录；F1–F5 脚本真正改系统 | Computer use **待验证** |
+| **M2 网关硬强制 + 日志** | 出站经网关；直连失败；连接日志可开关落盘；上游可指 Clash；gost 中继计划/启停 | 模块+脚本+样例完成；**真 Hyper-V/gost/Clash 联调待验证** |
+| **M3 Claude + 目录 + 假环境落地** ← **当前** | 假环境 -Apply；MSIX 安装指引/脚本；`smb_internal` 挂载计划+共享骨架；Guest health（Claude/挂载/假环境） | 骨架完成；**真机装 Claude / SMB / Computer use 待验证** |
 | **M4 控件 UI 最小** | CLI/GUI：代理、目录、启停透窗、日志路径 | 对齐 SCOPE |
 
 ---

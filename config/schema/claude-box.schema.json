@@ -233,6 +233,32 @@
               "default": false
             }
           }
+        },
+        "mount": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "How host visible_dirs are exposed into the guest (M3).",
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": [
+                "smb_internal",
+                "copy_vmfile",
+                "enhanced_session_manual"
+              ],
+              "default": "smb_internal"
+            },
+            "guest_root": {
+              "type": "string",
+              "default": "Z:",
+              "description": "Starting drive letter for guest mappings."
+            },
+            "share_prefix": {
+              "type": "string",
+              "default": "ClaudeBox",
+              "description": "SMB share name prefix on the host."
+            }
+          }
         }
       }
     }
