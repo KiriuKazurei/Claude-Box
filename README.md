@@ -14,6 +14,7 @@ Docker-like 容器，用于隔离运行 Claude Desktop。
 ## 文档
 
 - [SCOPE.md](./SCOPE.md) — 范围定稿 v0.1
+- [docs/research-v0.md](./docs/research-v0.md) — 初步技术调研 v0
 
 ## 仓库
 
