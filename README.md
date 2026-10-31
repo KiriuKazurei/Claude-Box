@@ -1,10 +1,12 @@
 # Claude Box
 
-Docker-like 容器，用于隔离运行 Claude Desktop。
+隔离运行 Claude Desktop 的独立产品（运行时形态可换）。
 
 ## 目标
 
-在容器里跑 Claude Desktop：项目目录可挂入，其它宿主机文件默认不可见；出入网经 Docker 管理的唯一网关；原生 GUI 窗口透出；尽量伪装完整独立环境并拦截对环境的遥测。
+在隔离环境里跑 Claude Desktop：项目目录可挂入，其它宿主机文件默认不可见；出入网经唯一网关；原生 GUI 窗口透出；尽量伪装完整独立环境并拦截对环境的遥测。
+
+Docker-like / 容器只是思路方向，不是硬约束。
 
 ## 平台
 
