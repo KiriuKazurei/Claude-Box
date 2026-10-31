@@ -2,7 +2,9 @@
 
 隔离运行 Claude Desktop 的独立产品（运行时形态可换）。
 
-**状态：MVP in progress · M4（最小控件 UI）**
+**状态：方案 v1 · 主路径改为自建专用容器；第一个里程碑 C0（容器 MVP）**
+
+> Hyper-V 访客路径已弃用（Win11 家庭版不支持），见下方文档。
 
 ## 目标
 
@@ -19,8 +21,11 @@
 
 ## 文档
 
-- [SCOPE.md](./SCOPE.md) — 范围定稿 v0.1
-- [docs/architecture-v0.md](./docs/architecture-v0.md) — **架构方案 v0**（MVP 决策 / 里程碑；含 M4）
+- [SCOPE.md](./SCOPE.md) — 范围 v0.2
+- [docs/architecture-v1-container.md](./docs/architecture-v1-container.md) — **架构 v1：自建专用容器（主路径，C0–C4）**
+- [docs/research-v2-container.md](./docs/research-v2-container.md) — 自建容器调研 v2
+- [src/ClaudeBox.Container/README.md](./src/ClaudeBox.Container/README.md) — 容器启动器骨架（未实现）
+- [docs/architecture-v0.md](./docs/architecture-v0.md) — 架构方案 v0（Hyper-V，已弃用）
 - [docs/research-v1-runtime.md](./docs/research-v1-runtime.md) — 隔离运行时选型调研 v1
 - [docs/research-v0.md](./docs/research-v0.md) — 初步技术调研 v0
 - [src/ClaudeBox.Gateway/README.md](./src/ClaudeBox.Gateway/README.md) — M2 网关

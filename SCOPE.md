@@ -1,4 +1,4 @@
-# Claude Box · 范围 v0.1（定稿）
+# Claude Box · 范围 v0.2（主路径改为自建专用容器）
 
 ## 一句话
 
@@ -14,7 +14,15 @@
 - **Docker-like / 容器**只是思路方向，**不是硬约束**；有更好策略可换。
 - 硬约束是：隔离跑 Claude、原生窗口、唯一网关、目录可见性、环境伪装与反遥测。
 
-### 已定主路径（2026-10-31）
+### 主路径 v0.2（2026-10-31 改）
+
+- 用户机器为 **Win11 家庭版**：无 Hyper-V / Windows Sandbox / Docker Windows 容器。
+- **主路径 = 自建专用容器**（宿主上：专用本地用户 + 受限 token + job object + WFP 强制经网关 + hook 环境伪装）。见 [docs/architecture-v1-container.md](./docs/architecture-v1-container.md)。
+- **第一个里程碑 = C0 容器 MVP**：在容器内启动 Claude（隔离 FS 根 + 经网关 + 进程树受 job 限制）。
+- 诚实限制：同内核下硬件/内核信息无法像 VM 那样完全隐藏；Computer use 看到的是宿主真实桌面。
+- 下方 Hyper-V 内容**已弃用**，仅作可选参考。
+
+### 旧主路径（已弃用：Hyper-V，2026-10-31）
 
 - **Claude**：Windows Claude（exe/MSIX；主进程+子进程均在访客内）。Linux Claude 无 Computer use，不作主路径。
 - **Win11 盒子**：**Hyper-V Windows 访客** + Internal 交换机强制唯一网关。
@@ -35,7 +43,7 @@
 
 - 配置网关、上游（含 Clash）、连接日志
 - 选择可见目录（拒绝默认挂宿主 C:）
-- 启停隔离实例并透出原生窗口（Enhanced Session）
+- 启停容器实例（Claude 原生窗口直接在宿主桌面）
 
 ## 暂不进 MVP
 
