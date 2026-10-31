@@ -8,3 +8,18 @@ Thumbs.db
 .vscode/
 *.swp
 *~
+
+# Local config with secrets / machine paths
+config/config.yaml
+config/*.local.yaml
+
+# Hyper-V / disk artifacts (never commit)
+*.vhdx
+*.vhd
+*.avhdx
+*.iso
+disks/
+.artifacts/
+
+# PowerShell
+*.ps1xml.bak
