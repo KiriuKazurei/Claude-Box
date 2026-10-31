@@ -132,7 +132,8 @@
 - [ ] 家庭版 HCS / Cowork 可用性。
 - [ ] `--proxy-server` / `HTTPS_PROXY` 是否覆盖全部出站。
 - [x] 安装 Ghidra 12.2 + JDK 25；对 `claude.exe` / `claude-native-binding.node` 做 headless 轻量分析（§7）。
-- [ ] 用 Ghidra/rea 深入 `Claude_Setup.exe`、`cowork-svc.exe`（本次未做）。
+- [x] 用 Ghidra headless 轻量分析 `cowork-svc.exe` / `claude-ssh-proxy.exe` / `claude-make-data-folder.exe`（§8；**未**全量反编译）。
+- [ ] 用 Ghidra/rea 深入 `Claude_Setup.exe`（仍未做）。
 - [ ] 在 Windows 上确认 native 模块 NAPI 名与 Computer use 实际调用链。
 
 ## 7. Ghidra 对 `claude.exe` 的分析
@@ -202,3 +203,158 @@
 - `claude.exe` 的 Ghidra 串扫描跳过了 `.text`（≈183 MB）与 `.rdata`（≈43 MB），Electron 版本串来自主机 `strings`，不是 Ghidra 内存扫描。
 - 未分析 `Claude_Setup.exe` / `cowork-svc.exe` 的 Ghidra 工程（时间盒内优先主程序 + native）。
 - 未在 Windows 上动态验证任何导入的实际调用。
+
+## 8. 后台进程深挖（2026-10-31，Asia/Tokyo）
+
+静态分析范围：`AppxManifest.xml`、`installers/payload/asar/.vite/build/*.js`、`app/resources/*.exe`、`app.asar.unpacked`；Ghidra 12.2 headless + `DumpClaudeLight.java`（`-noanalysis`，**未**对 Electron 主程序或 helper 做全量反编译）。**未在 Windows 实机跑过 Claude**——动态进程树、实际是否 StartService、代理是否覆盖 helper，一律标 **待验证**。
+
+### 8.1 Manifest 登记面（Application / 启动 / 服务 / 协议 / 别名 / 防火墙）
+
+来源：`installers/payload/msix/AppxManifest.xml`。
+
+| Id / 名称 | Executable | 类型 | 要点 |
+|---|---|---|---|
+| `Claude` | `app\Claude.exe` | Application（FullTrust） | 主 UI；`internetClient` + 包级出站 TCP 防火墙规则 |
+| `ClaudeStartup` | 同上 + `--startup` | `windows.startupTask` | **Enabled="false"**（默认不开机自启） |
+| 协议 `claude` | 主应用 | `windows.protocol` | `claude://` deep link |
+| 别名 `claude-desktop.exe` | 主应用 | `appExecutionAlias` | |
+| **`CoworkVMService`** | `app\resources\cowork-svc.exe` | **`windows.service`**，`StartupType=auto`，**`StartAccount=localSystem`** | ETW 自定义触发 Subtype `1f81d131-3e60-4c76-9860-37334e4ffce3`，StringData `\pipe\cowork-vm-service`；注释写明 **pipe 活动不会触发**，**应用自行把已停止服务拉起** |
+| `SshAskpass` | `app\resources\claude-ssh-askpass.exe` | Application，`AppListEntry=none` | 别名同名 |
+| `SshProxy` | `app\resources\claude-ssh-proxy.exe` | 同上 | 别名同名 |
+| `MakeDataFolder` | `app\resources\claude-make-data-folder.exe` | `win32App`，**`TrustLevel=mediumIL`** | 别名同名；专门绕过包虚拟化建数据目录 |
+| （包扩展） | `Claude.exe` / `cowork-svc.exe` | `windows.firewallRules` | 各一条 **出站 TCP、Profile=all** |
+
+Capabilities：`runFullTrust`、`localSystemServices`、`packagedServices`、`unvirtualizedResources`、`internetClient`。
+
+### 8.2 Helper / 附属二进制清单
+
+路径相对 `installers/payload/msix/app/`。
+
+| 文件 | 约大小 | PE / 语言（证据） | 角色（静态） |
+|---|---:|---|---|
+| `resources/cowork-svc.exe` | 13.1 MB | Go（Ghidra `CompilerSpec=golang`；包 `github.com/anthropics/cowork-win32-service`） | Windows 服务：HCS 起 LinuxKernelDirect VM、Plan9 共享盘、HVSock/vsock RPC、gvisor-tap-vsock 用户态网络、guest HTTP 代理刷新 |
+| `resources/smol-bin.x64.vhdx` | 36.0 MB | VHDX | Cowork 访客根盘（`SDK_DAEMON`）；主进程启动时复制为会话内 `smol-bin.vhdx` |
+| `resources/claude-ssh-proxy.exe` | 1.9 MB | Go（`anthropics/ssh-askpass/cmd/claude-ssh-proxy`） | SSH 侧通道：把命令放进 Job；读 `SSH_ASKPASS*` / `CLAUDE_SSH_ASKPASS_*` |
+| `resources/claude-ssh-askpass.exe` | 2.5 MB | Go（`…/cmd/claude-ssh-askpass`） | SSH 口令/密钥提示；经 broker/relay 命名管道与桌面通信 |
+| `resources/claude-ssh-broker.exe` | 2.5 MB | Go（`…/cmd/claude-ssh-broker`） | 命名管道监听（`ListenPipe` / `makeServerPipe`）；协调 askpass |
+| `resources/claude-make-data-folder.exe` | 1.5 MB | Go（`anthropics/win32-data-folder`）；Subsystem=2 GUI | mediumIL 下在真实 `%LOCALAPPDATA%` 建 `Claude-Data` 类目录（避开 MSIX 写虚拟化） |
+| `resources/chrome-native-host.exe` | 1.1 MB | Rust（tokio/mio named_pipe；`chrome-native-host0.1.0`） | Chrome/Edge 等 Native Messaging ↔ 管道 `\\.\pipe\claude-mcp-browser-bridge-*` |
+| `resources/app.asar.unpacked/resources/github-mcp/github-mcp-server.exe` | 24.5 MB | Go（`github.com/github/github-mcp-server`） | 内置 GitHub MCP（stdio）；可由 `CLAUDE_DESKTOP_GITHUB_MCP_BINARY` 覆盖路径 |
+| `…/office365-mcp/msalruntime.dll` + `msal-node-runtime.node` | 3.3+0.4 MB | MSAL 原生 | Office365 MCP / WAM broker；JS 侧另 spawn `office365-mcp-stdio.mjs` |
+| `…/node_modules/@ant/claude-native/claude-native-binding.node` | 4.0 MB | Rust N-API | Computer use、**`startWindowsService` / `queryWindowsServiceState`**、HCS 状态、Job 等（见 §7.4） |
+| `…/node-pty/.../conpty*.node` | ~0.5 MB | 原生 | 终端 PTY（经 `pty-host` UtilityProcess） |
+
+Electron **同树 UtilityProcess / Worker**（非独立 exe，仍是 `claude.exe` 子进程）：`.vite/build/` 下  
+`pty-host`、`mcp-runtime`（含 `directMcpHost.js`）、`msal-broker-worker`、`file-index-worker`、`heavy-work-worker`、`shell-path-worker`、`frame-local-worker`、`transcript-search-worker`、`stall-sampler-worker`。主进程用 `utilityProcess.fork(...)`（证据：`index.chunk-2SHPxESV.js` `@1437084`、`@2769053`）。
+
+### 8.3 命名管道 / IPC / 网络（静态串）
+
+**Cowork（`cowork-svc.exe`）**
+- `\\.\pipe\cowork-vm-service`（主控；JS：`OJn="\\\\.\\pipe\\cowork-vm-service"`，`index.chunk-2SHPxESV.js` `@3102049`）
+- `\\.\pipe\cowork-vm-service-store`
+- `\\.\pipe\cowork-vm-console-…` / `cowork-daemon-console` / `cowork-daemon-console-store`
+- 内部名线索：`cowork-vm`、`cowork-vm-nat`、`cowork-vm-vnet`、`cowork-vm-store`
+- HCS：动态加载 `computecore.dll` / `computenetwork.dll`；串含 `HcsCreateComputeSystem`、`HcsStart/Terminate/Modify…`、`HcnEnumerateNetworks`、`Boot mode: LinuxKernelDirect (x64)`、`Guest mounted %d/%d fixed-drive Plan9 shares`、`Plan9 share via HcsModifyComputeSystem`
+- 网络：`gvisor-tap-vsock`、`win-httpproxy`（`DetectAutoProxyConfigURL`）、向 guest 下发 `httpProxy`/`httpsProxy`/`noProxy`；**有自己的用户态转发，可能不走宿主进程代理**——**待验证**是否绕过 cbox 网关
+- 服务：`CoworkVMService` / `CoworkVMServiceStore`；`OpenSCManager` / `StartService` / `StartServiceCtrlDispatcher`
+
+**Chrome native host**
+- `\\.\pipe\claude-mcp-browser-bridge-…`；日志 `%LOCALAPPDATA%\Claude\logs\chrome-native-host.log`
+
+**SSH helpers**
+- 环境变量：`SSH_ASKPASS`、`SSH_ASKPASS_PROMPT`、`SSH_ASKPASS_REQUIRE`、`CLAUDE_SSH_ASKPASS_ASKER` / `_RELAY` / `_BROKER`；桌面侧另有 `CLAUDE_DESKTOP_SSH_ASKPASS_HELPER`
+- Broker：`ListenPipe`；Proxy：把目标命令放进 **Job Object**（Ghidra 串 `cannot place the command in its job`）
+- 出站：**SSH 直连远端主机**，不经过 Claude 的 HTTP 代理栈——**待验证**；cbox WFP 需按 exe 路径单独管
+
+**GitHub MCP**
+- 路径解析：`resourcesPath/app.asar.unpacked/resources/github-mcp/github-mcp-server.exe`（`index.chunk-Be7fdDOi.js`）；出站 `api.github.com`（stdio 宿主进程代发或自连——**待验证**）
+
+### 8.4 主进程如何拉起（代码证据）
+
+1. **CoworkVMService（越权面最大）**  
+   - Native：`claude-native-binding` 暴露 `queryWindowsServiceState` / `startWindowsService`（JS：`Di()?.startWindowsService(xM)`，`xM="CoworkVMService"`）。  
+   - 流程（`index.chunk-2SHPxESV.js` ~`@3094757+`）：查 SCM 状态 → 若 stopped 则 `StartService` → 轮询直到 running → 再 `connect` 到 `\\.\pipe\cowork-vm-service`。  
+   - VM 启动：复制 `process.resourcesPath/smol-bin.<arch>.vhdx` → 用户数据下 `smol-bin.vhdx`，再 `g.configure()`（Windows VM service）。  
+   - 权限：**LocalSystem 服务**，不在用户 Job 内；可 HCS 建 VM、Plan9 挂宿主盘符、自带 netstack。  
+   - 持久化：包注册时服务 `StartupType=auto`；即使服务停着，**用户态主进程也能再 Start**。
+
+2. **claude-make-data-folder.exe**  
+   - Manifest `mediumIL` + JS 常量 `_Ue="claude-make-data-folder"` 与退出码表（`made`/`already_there`/`refused`/…）。  
+   - 用途：在**真实** LocalAppData 建数据目录（配合 §3.1 写虚拟化排除）。具体 `spawn`/`shell:AppsFolder\…MakeDataFolder` 调用点在压缩包内较散——**待验证**实机调用链；便携解包模式下可能根本用不到。
+
+3. **SSH 三角**  
+   - 从 `resourcesPath` 找 `claude-ssh-askpass.exe`（`index.chunk-Cj24FzSL.js`）；失败文案要求放行 askpass/broker/proxy（`index.chunk-UlAM2G-q.js`）。  
+   - 用户态、随 SSH 功能启停；Broker 管道 IPC。
+
+4. **chrome-native-host.exe**  
+   - 注册 `HKCU\…\NativeMessagingHosts\com.anthropic.claude_browser_extension`；浏览器拉起 host，host 再连 Claude 的 named pipe。  
+   - **会写宿主浏览器注册表**（manifest 已 ExcludedKey）。
+
+5. **MCP / UtilityProcess**  
+   - `utilityProcess.fork` 拉 `mcp-runtime`、各 `*-worker`、`pty-host`；GitHub MCP 为独立 exe；Office365 为 `office365-mcp-stdio.mjs` + MSAL broker worker。  
+   - 均随主进程用户身份；期望落在同一 Job（Electron 自身也用 Job——§7.2）。
+
+6. **StartupTask / crashReporter / autoUpdater**  
+   - StartupTask 默认禁用。  
+   - `crashReporter.addExtraParameter`（GPU 退出码等）；crash 目录归入 `app:crash` 存储分类。  
+   - autoUpdater 见 §3.6（非常驻独立 exe）。
+
+### 8.5 预期进程树（功能开关下的静态推断，**待验证**）
+
+```
+claude.exe                          # Browser / 主进程
+├─ claude.exe (GPU)
+├─ claude.exe (Renderer ×N)
+├─ claude.exe (Utility / Network …) # Chromium
+├─ UtilityProcess: pty-host         # 终端 / Claude Code
+├─ UtilityProcess: mcp-runtime / workers…
+├─ [可选] github-mcp-server.exe     # MCP: GitHub
+├─ [可选] node… office365-mcp-stdio # MCP: M365（或同树 utility）
+├─ [可选] chrome-native-host.exe    # 浏览器扩展（常由浏览器拉起）
+├─ [可选] claude-ssh-{broker,askpass,proxy}.exe
+└─ （同会话 Computer use：仍在主进程 + native .node，无单独 exe）
+
+另树 / 系统服务（**不在用户 Job 内**）：
+  cowork-svc.exe  (CoworkVMService, LocalSystem)
+    └─ HCS VM (LinuxKernelDirect) + Plan9 + vsock
+```
+
+Cowork **关**：应无 `cowork-svc` 活动与 VHDX 复制（若服务仍 auto 安装，空闲服务进程是否驻留——**待验证**）。  
+Cowork **开**：LocalSystem 服务 + 可能挂载宿主固定盘 Plan9——**容器逃逸级**。
+
+### 8.6 Ghidra 轻量结果（helper）
+
+工程 dumps：`/home/box/tools/ghidra-projects/claude-box/dumps/{cowork-svc,claude-ssh-proxy,claude-make-data-folder}.exe_ghidra_*`。
+
+| 二进制 | Language/Compiler | 导入 DLL（PE） | 备注 |
+|---|---|---|---|
+| `cowork-svc.exe` | x86-64 / **golang** | 表面仅 `KERNEL32`（Go 动态 `LoadLibrary*`）；Interesting=`LoadLibraryW/ExW`,`VirtualAlloc` | 真实 HCS/SCM/Winsock 经运行时解析；串扫描已覆盖 HCS/Plan9/pipe |
+| `claude-ssh-proxy.exe` | golang | 同上模式 | Job + Askpass 环境变量 |
+| `claude-make-data-folder.exe` | golang；Subsystem GUI | 同上 | `KnownFolderPath` / `CreateDirectory` / package family |
+
+### 8.7 对 cbox（C0）封装的 allow / deny
+
+| 组件 | C0 建议 | 理由 |
+|---|---|---|
+| `claude.exe` 树 + UtilityProcess/workers/pty-host | **ALLOW**（容器用户 + Job） | 核心 UI；出站只准本地网关（WFP 按路径） |
+| `claude-native-binding.node` | ALLOW 加载，但 **阻断** `startWindowsService` 效果 | 不注册/删除 `CoworkVMService`；SCM Start 应失败或无服务 |
+| **`cowork-svc.exe` / `smol-bin*.vhdx` / Cowork 功能** | **DENY / 不安装服务、不复制 VHDX、策略关 Cowork** | LocalSystem + HCS + Plan9 挂盘 + 自有 netstack = **逃逸与绕过网关** |
+| `claude-make-data-folder.exe` | 便携模式下 **可不需要**；若 spawn，ALLOW 但限制只能写容器 LocalAppData | mediumIL 写真实磁盘；ACL 必须卡住宿主用户目录 |
+| `claude-ssh-*` | C0 **DENY**（功能非 MVP） | SSH 直连；WFP 否则要为三件套单独开洞 |
+| `chrome-native-host.exe` | C0 **DENY** | 写宿主浏览器 NativeMessaging；桥接宿主 Chrome |
+| `github-mcp-server.exe` / office365-mcp | C0 **DENY**（可后续按需 ALLOW + 网关域名白名单） | 额外出站与凭据缓存 |
+| StartupTask `ClaudeStartup` | 保持禁用 | 避免宿主登录自启 |
+| 包防火墙规则（出站 TCP all） | **不可依赖**；cbox 自管 WFP | Manifest 规则在便携解包下不生效；正式 MSIX 下过宽 |
+
+**WFP 要点**：规则要绑 **具体 exe 路径**（主程序 + 若将来放行的 MCP/SSH），默认拒绝出站，仅允许 → 本机网关。对 **LocalSystem 的 cowork-svc** 即使放行用户 Job 规则也管不到——必须从根上不装/不启服务。Guest 侧 Plan9 看到的是**宿主盘**，与 cbox「可见目录」模型冲突。
+
+### 8.8 待验证
+
+- [ ] 实机：默认安装后 `CoworkVMService` 是否已 Running；关 Cowork UI 后服务是否退出。
+- [ ] 家庭版：无 Hyper-V 功能时 HCS/`CoworkVMService` Start 的错误码与 UI 表现。
+- [ ] 便携解包：`startWindowsService` 是否直接 `native_unavailable`；无服务时 Cowork 入口行为。
+- [ ] `claude-make-data-folder` 实际启动方式（AppsFolder vs 直接路径）及退出码。
+- [ ] SSH/GitHub MCP 出站是否尊重系统/`HTTPS_PROXY`。
+- [ ] UtilityProcess 子进程是否自动加入 Electron Job（以及 cbox 外层 Job 能否覆盖）。
+- [ ] chrome-native-host 由浏览器拉起时，是否继承容器用户/环境。
+
