@@ -23,3 +23,7 @@ disks/
 
 # PowerShell
 *.ps1xml.bak
+
+# Gateway connection logs (local only)
+**/ClaudeBox/logs/
+logging.enabled

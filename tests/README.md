@@ -1,11 +1,7 @@
 # tests
 
-| 测试 | 环境 | 说明 |
-|---|---|---|
-| `Test-Structure.ps1` | Linux pwsh 或 Win | M0：文件存在、PS 语法、模块可导入 |
-| Hyper-V 集成 | 仅 Win11 | 见 `docs/architecture-v0.md` §11；尚未自动化 |
+`Test-Structure.ps1` — 仓库结构、PowerShell 语法、配置抽取、宿主 C: 护栏、网关日志占位。不依赖 Hyper-V；可在 Linux `pwsh` 跑。
 
 ```bash
-# On this Linux box (pwsh available):
 pwsh -File tests/Test-Structure.ps1
 ```
