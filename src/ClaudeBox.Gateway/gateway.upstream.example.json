@@ -1,0 +1,19 @@
+{
+  "listen_ip": "192.168.87.1",
+  "listen_port": 3080,
+  "primary": "http",
+  "upstream": {
+    "http": "http://127.0.0.1:7890",
+    "socks5": "socks5://127.0.0.1:7891"
+  },
+  "logging": {
+    "enabled": true,
+    "path": "%LOCALAPPDATA%\\ClaudeBox\\logs\\gateway.jsonl",
+    "max_mb": 64
+  },
+  "blocklist": [
+    "google-analytics.com",
+    "api2.amplitude.com"
+  ],
+  "notes": "Upstream typically host Clash HTTP/SOCKS. Host Clash TUN is optional and does not replace this gateway. Do not commit secrets. M2: map into gost via Start-ClaudeBoxGateway."
+}
