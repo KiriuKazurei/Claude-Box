@@ -13,8 +13,15 @@
 
 - **Docker-like / 容器**只是思路方向，**不是硬约束**；有更好策略可换。
 - 硬约束是：隔离跑 Claude、原生窗口、唯一网关、目录可见性、环境伪装与反遥测。
-- 前期可借现成引擎验证（如 Win11 上 WSL2 / Docker Desktop / Hyper-V / Sandbox）；确认盒子语义有效后，可替换为自建或其它底层，尽量保住同一套网关策略与控件语义。
-- Claude 二进制（Linux 版 vs Windows exe）随所选运行时决定，不以「必须 Docker」绑定某一种。
+
+### 已定主路径（2026-10-31）
+
+- **Claude 二进制**：Windows Claude（exe/MSIX）。因官方 Linux 版无 Computer use，不用 Linux Claude 作主路径。
+- **Win11 盒子**：**Hyper-V Windows 访客** + 内网交换机强制唯一网关（HTTP/SOCKS5 由控件配置）。
+- Windows Sandbox 仅可作冒烟，不作产品运行时。
+- WSL2 / Docker 不作本阶段主路径（跑不了 Windows Claude）。
+- 前期借 Hyper-V 验证盒子语义；后期若自建底层，尽量保住同一套网关策略与控件语义。
+- macOS 次优先，另议等价访客方案。
 
 ## 隔离与反遥测（核心）
 
