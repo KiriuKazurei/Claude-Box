@@ -1,0 +1,17 @@
+name = "claude"
+image = "claude-1.x"          # cbox import <unpacked MSIX app dir> claude-1.x
+entrypoint = "Claude.exe"
+root = 'E:\AI\ClaudeBox\containers\claude'
+isolation = "user"            # "appcontainer" = strict, breaks Computer use
+
+[network]
+gateway = "http://127.0.0.1:7890"
+enforce = true                # C1: WFP
+
+[[mounts]]
+host = 'E:\Projects'
+
+[env_spoof]                   # C2
+hostname = "DESKTOP-CBOX01"
+timezone = "UTC"
+locale = "en-US"

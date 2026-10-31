@@ -78,3 +78,20 @@ Computer use 要**截整个用户桌面**并**向任意窗口注入键鼠**。
 - V4 WFP 按用户 SID 过滤对 Electron 网络服务进程（可能在 `svchost`/NetworkService 中做 DNS）的影响；DNS 是否需走网关。
 - V5 hook DLL 能否覆盖 Electron 所有子进程，Chromium 渲染沙箱是否拒绝注入。
 - V6 在线引导器 `Claude_Setup.exe` 能否在容器内跑；不行则改用离线 MSIX（F5）。
+
+## 8. Rust 实现评估（和零追加：Docker 式 `cbox`）
+
+**可行**。所需 Win32 API 均在 `windows` crate（windows-rs，微软官方生成的绑定）中：`Win32_Security_Isolation`（`CreateAppContainerProfile`）、`Win32_System_JobObjects`、`Win32_Security`/`Win32_Security_Authorization`（`CreateRestrictedToken`、ACL）、`Win32_NetworkManagement_WindowsFilteringPlatform`（`FwpmFilterAdd0`）、`Win32_NetworkManagement_NetManagement`（`NetUserAdd`）、`Win32_System_StationsAndDesktops`。来源：[windows-rs](https://github.com/microsoft/windows-rs)。具体 feature 名以编译为准（**待验证**，骨架目前只在 Linux 上 `cargo check` 通过，Windows 依赖未编译）。
+
+| 用途 | crate | 备注 |
+|---|---|---|
+| Win32 绑定 | `windows`（官方） | `windows-sys` 更轻但无 COM/安全封装 |
+| CLI | `clap` derive | `cbox import/run/ps/stop/rm` |
+| spec | `serde` + `toml` | `cbox.toml` |
+| 错误 | `anyhow`（bin）/ `thiserror`（lib） | |
+| 状态存储 | JSON 文件起步（`serde_json`）| 后续可换 `redb` |
+| 日志 | `tracing` | 可与网关 JSONL 对齐 |
+| hook DLL（C2） | `retour`（纯 Rust detour）或 `minhook` 绑定 | **待验证**对 Electron 子进程的稳定性 |
+| 可选参考 | `rappct`（社区 AppContainer 封装） | 成熟度**待验证**，不作依赖 |
+
+诚实限制：Windows 无 mount/pid/net namespace、无 overlayfs、无 cgroups。`cbox` 的「容器」= 本地用户 + 受限 token + job object（≈cgroup/pid 树）+ ACL（≈mount 可见性）+ WFP（≈netns 出口策略）+ 用户态 hook（≈UTS 伪装，可被绕过）。「镜像」只是解包的应用目录，没有分层。

@@ -1,0 +1,16 @@
+[package]
+name = "cbox-win"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+cbox-core = { path = "../cbox-core" }
+anyhow = "1"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+  "Win32_Foundation", "Win32_Security", "Win32_Security_Isolation",
+  "Win32_System_JobObjects", "Win32_System_Threading", "Win32_Security_Authorization",
+  "Win32_NetworkManagement_WindowsFilteringPlatform", "Win32_NetworkManagement_NetManagement",
+  "Win32_System_StationsAndDesktops",
+] }

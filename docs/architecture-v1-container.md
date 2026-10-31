@@ -9,10 +9,11 @@
 宿主 Win11 Home
 ├─ ClaudeBox.Control (M4 UI，复用)
 ├─ ClaudeBox.Gateway (gost + JSONL，监听 127.0.0.1，复用 M2)
-├─ ClaudeBox.Container (新)
-│   ├─ Launcher：容器用户 + 受限 token + job object
+├─ cbox (新，Rust 工作区 src/cbox/，Docker 式 CLI)
+│   ├─ cbox-cli / cbox-core / cbox-win（windows-rs）
+│   ├─ 运行：容器用户 + 受限 token + job object
 │   ├─ Net：WFP 规则（容器用户 SID → 只许连网关）
-│   ├─ Hook DLL（C2）：环境伪装
+│   ├─ cbox-hook（C2，cdylib）：环境伪装
 │   └─ ContainerRoot\{profile,app,logs}
 └─ Claude.exe 及全部子进程（运行在容器用户下、job 内）
 ```
@@ -47,3 +48,11 @@ C0 验收检查：
 
 - 复用：`config/`、`ClaudeBox.Gateway`（改为监听 loopback）、`ClaudeBox.Control` UI。
 - 弃用（保留代码，不再主线）：`scripts/win11` 的 Hyper-V 建机/交换机脚本、`ClaudeBox.Guest`（访客内脚本）。
+
+## 实现：Rust `cbox`（Docker 式体验）
+
+- `cbox import <解包的 app 目录> <image>` → `<store>\images\<image>`（只读，ACL 给容器用户 RX）
+- `cbox run <spec.toml>` → 建实例（用户、根目录、job、WFP），启动 entrypoint；`ps/stop/rm` 管理实例。
+- spec 字段：`image / entrypoint / root / isolation(user|appcontainer) / [network] gateway, enforce / [[mounts]] / [env_spoof]`，示例见 `src/cbox/examples/claude.cbox.toml`；挂载拒绝 `C:\` 与 `C:\Users`。
+- C0 = `cbox run` 能完成上面 C0 验收 1–5；C4 的 UI 只是调 `cbox` 的前端。
+- 不是真容器：Windows 无内核 namespace，见 research §8。

@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+members = ["crates/cbox-cli", "crates/cbox-core", "crates/cbox-win"]
+
+[workspace.package]
+edition = "2021"
+version = "0.0.1"

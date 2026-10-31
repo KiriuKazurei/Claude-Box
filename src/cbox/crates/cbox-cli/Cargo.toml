@@ -1,0 +1,14 @@
+[package]
+name = "cbox-cli"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "cbox"
+path = "src/main.rs"
+
+[dependencies]
+cbox-core = { path = "../cbox-core" }
+cbox-win = { path = "../cbox-win" }
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"

@@ -17,7 +17,7 @@
 ### 主路径 v0.2（2026-10-31 改）
 
 - 用户机器为 **Win11 家庭版**：无 Hyper-V / Windows Sandbox / Docker Windows 容器。
-- **主路径 = 自建专用容器**（宿主上：专用本地用户 + 受限 token + job object + WFP 强制经网关 + hook 环境伪装）。见 [docs/architecture-v1-container.md](./docs/architecture-v1-container.md)。
+- **主路径 = 自建专用容器**（宿主上：专用本地用户 + 受限 token + job object + WFP 强制经网关 + hook 环境伪装），以 Rust 实现 Docker 式 CLI `cbox`（run/ps/stop/rm）。见 [docs/architecture-v1-container.md](./docs/architecture-v1-container.md)。
 - **第一个里程碑 = C0 容器 MVP**：在容器内启动 Claude（隔离 FS 根 + 经网关 + 进程树受 job 限制）。
 - 诚实限制：同内核下硬件/内核信息无法像 VM 那样完全隐藏；Computer use 看到的是宿主真实桌面。
 - 下方 Hyper-V 内容**已弃用**，仅作可选参考。
