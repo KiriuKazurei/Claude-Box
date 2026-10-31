@@ -7,9 +7,16 @@
 
 - [morluto/rea](https://github.com/morluto/rea)（npm 包 `rea-agents`，本次版本 rea@6.8.0）：“Reverse Engineer Anything”，一个把逆向能力以 MCP / CLI 暴露给 AI 代理的工具集。原生二进制分析需要外部引擎（Ghidra 12.1.x / Hopper / IDA / Kuna）；JS/Electron 静态分析内置。
 - 在 Linux 上 `npm i -g rea-agents` 安装成功（Node 24.22.1）。
-  - `rea analyze Claude_Setup.exe` → `provider_unavailable`：box 上没有 Ghidra/Hopper/IDA，Kuna 不支持 PE。**原生 PE 分析未跑通**（装 Ghidra 12.1 + JDK 后可重试）。
-  - `rea analyze-javascript-application <asar 目录>` 运行 ~5 分钟后被超时取消，且 `fileIndexWorker.js`、`index.chunk-2SHPxESV.js`（6.8 MB）超出其 1 GiB V8 堆上限，只拿到部分观测。**实际结论主要来自 7z / strings / @electron/asar / Python 正则检索**。
-- 其它工具：`7z`、`strings`、`npx @electron/asar`、Python。
+  - `rea analyze Claude_Setup.exe` → 早期曾 `provider_unavailable`（当时无 Ghidra）。现已安装 Ghidra 12.2，但对 236 MB Electron 外壳做全量 rea/Ghidra 反编译不现实；本次用 Ghidra headless **轻量导入**（见 §7）。
+  - `rea analyze-javascript-application <asar 目录>` 运行 ~5 分钟后被超时取消，且 `fileIndexWorker.js`、`index.chunk-2SHPxESV.js`（6.8 MB）超出其 1 GiB V8 堆上限，只拿到部分观测。**JS/网络端点结论主要来自 7z / strings / @electron/asar / Python 正则检索**。
+- 其它工具：`7z`、`strings`、`npx @electron/asar`、Python `pefile`、**Ghidra 12.2**（见下）。
+- **Ghidra 安装位置（供后续复用）**：
+  - 本体：`/home/box/tools/ghidra` → `ghidra_12.2_PUBLIC`
+  - JDK：`/home/box/tools/jdk-25.0.5+8`（Temurin 25）
+  - 环境：`export JAVA_HOME=/home/box/tools/jdk-25.0.5+8; export PATH="$JAVA_HOME/bin:$PATH"`
+  - 工程目录：`/home/box/tools/ghidra-projects/claude-box/`（含 `ClaudeExe`、`ClaudeNative` 项目与 `dumps/`）
+  - 轻量脚本：`/home/box/tools/ghidra-scripts/DumpClaudeLight.java`（只抽 PE 元数据/导入/导出/关键词串，**不做全量反编译**）
+  - 用户扩展：已解压 Jython 到 `~/.config/ghidra/ghidra_12.2_PUBLIC/Extensions/Jython`
 
 ## 1. 安装器 `Claude_Setup.exe`
 
@@ -124,4 +131,74 @@
 - [ ] 企业策略注册表值名与四个 disable 开关的效果（抓网关日志对比）。
 - [ ] 家庭版 HCS / Cowork 可用性。
 - [ ] `--proxy-server` / `HTTPS_PROXY` 是否覆盖全部出站。
-- [ ] 安装 Ghidra 后用 rea 分析 `Claude_Setup.exe`、`cowork-svc.exe`、`claude-native-binding.node`。
+- [x] 安装 Ghidra 12.2 + JDK 25；对 `claude.exe` / `claude-native-binding.node` 做 headless 轻量分析（§7）。
+- [ ] 用 Ghidra/rea 深入 `Claude_Setup.exe`、`cowork-svc.exe`（本次未做）。
+- [ ] 在 Windows 上确认 native 模块 NAPI 名与 Computer use 实际调用链。
+
+## 7. Ghidra 对 `claude.exe` 的分析
+
+分析时间：2026-10-31 约 18:17–18:22（Asia/Tokyo）。工具：Ghidra 12.2 headless + 自写脚本 `DumpClaudeLight.java`；辅以 `pefile` / `strings`（因 236 MB 的 `.text`/`.rdata` 不宜在 Ghidra 内全量扫串）。**未对整二进制做反编译**（会打满约 15 GiB 内存）；命令使用 `-noanalysis` 仅导入 PE 结构后跑脚本。原始 dumps 在 `/home/box/tools/ghidra-projects/claude-box/dumps/`（不入库）。
+
+### 7.1 结论摘要：是不是「原版 Electron 外壳」？
+
+**基本是库存 Electron/Chromium 外壳，再贴 Anthropic 版本资源。** 证据：
+
+| 证据 | 值 |
+|---|---|
+| 版本资源（PE Version Info） | `CompanyName=Anthropic`，`ProductName/FileDescription=Claude`，`FileVersion/ProductVersion=4.4212.0`，`OriginalFilename=claude.exe`，另有 `SquirrelAwareVersion=1` |
+| 内嵌 UA / 版本串（`strings`） | `Chrome/152.0.7977.167 Electron/44.9.3`；模板 `%s/%s Chrome/%s Electron/44.9.3` |
+| Ghidra Language / CompilerSpec | `x86:LE:64:default` / **`clangwindows`**（Chromium/Electron 常见 clang 工具链） |
+| 映像体量 | 文件约 236 MB；`SizeOfImage≈248 MB`；`.text` 约 **183.9 MB**（典型 Chromium 主进程壳） |
+| COFF TimeDateStamp | `1792540522` → **2026-10-20 23:55:22 UTC**（Asia/Tokyo：**2026-10-21 08:55:22**） |
+| 导出符号 | Ghidra 见 **2524** 个 external entry；大量 `v8::` / `node::` 装饰名，以及 Electron fuse 查询如 `electron::fuses::IsRunAsNodeEnabled`、`IsEmbeddedAsarIntegrityValidationEnabled`、`IsCookieEncryptionEnabled` 等 |
+| 源路径串（`strings`） | 大量 `..\..\electron\shell\browser\api\electron_api_*.cc`、`third_party\electron_node\...` |
+
+未发现把业务逻辑编进 `claude.exe` 本体的迹象：应用代码在 `resources/app.asar`（此前 §3）。**待验证**：是否相对上游 Electron 44.9.3 打了私有补丁（需对照官方 Electron 同版本二进制哈希/导出集合；本次未做）。
+
+### 7.2 导入表要点（Ghidra；含 delay-load）
+
+- Ghidra 统计：**59** 个外部 DLL、**1284** 条导入（含 delay-load）。`pefile` 仅解析到 7 个「立即」导入 DLL（KERNEL32/WS2_32/WINMM/CRYPT32/ntdll/VERSION/DWrite），其余多为 **DELAY_IMPORT**（USER32、WINHTTP、ADVAPI32、GDI32、ffmpeg 等）——封装时不要只看非 delay 表。
+- **无 WFP / Fwpm\*** 导入 → 出站过滤不能指望 Claude 自己；需容器侧 WFP/防火墙。
+- **有** `USERENV.DLL!DeriveAppContainerSidFromAppContainerName`（仅此相关符号；未见 `CreateAppContainerProfile` 等）——**待验证**运行时是否真的创建 AppContainer。
+- Job：`CreateJobObjectW` / `AssignProcessToJobObject` / `TerminateJobObject`（Electron/Chromium 子进程树常见）。
+- 进程：`CreateProcessW`、`CreateProcessAsUserW`、`CreateRemoteThread`、`OpenProcess`、`WriteProcessMemory`、`VirtualAlloc(Ex)`、`Process32FirstW/NextW`。
+- 网络：`WINHTTP.DLL` 全套（`WinHttpOpen/Connect/OpenRequest/SendRequest/...`）+ **`WinHttpGetIEProxyConfigForCurrentUser` / `WinHttpGetProxyForUrl`** → 会读系统/IE 代理，利于走容器网关；另有 WS2_32。
+- 凭据/DPAPI：`CryptProtectData` / `CryptUnprotectData`、NCrypt 系列、大量 Cert\*。
+- 输入/剪贴板（壳层也有，不只 native）：`SendInput`、`SetWindowsHookExW`、`GetAsyncKeyState`、剪贴板 API、`BitBlt`/`GetDC` 等。
+
+### 7.3 字符串关键词（离线 `strings`，因 Ghidra 跳过了 >40 MB 的 `.text`/`.rdata`）
+
+命中：`Electron/44.9.3`、`Chrome/152.0.7977.167`、大量 `ELECTRON_*` 环境变量名（含 `ELECTRON_RUN_AS_NODE`、`ELECTRON_DISABLE_SANDBOX`、`ELECTRON_DEBUG_MSIX_UPDATER`、`ELECTRON_FORCE_IS_PACKAGED` 等）。**未在外壳串中 prioritise 到** `api.anthropic.com` / Sentry DSN（那些在 asar/JS，见 §3.5）。`AppContainer` 字面串未作为独立业务逻辑突出出现（仅有上述 USERENV 导入）。
+
+### 7.4 附：`claude-native-binding.node`（Ghidra + pefile）
+
+路径：`resources/app.asar.unpacked/node_modules/@ant/claude-native/claude-native-binding.node`（约 4.0 MB）。
+
+| 项 | 值 |
+|---|---|
+| 格式 | PE DLL（Node N-API 原生模块） |
+| 语言线索 | **Rust**（`napi` 2.16 / `rustc/...` 路径；Ghidra 应用了 `rust-common` 数据类型库） |
+| 时间戳 | `1793254172` → **2026-10-29 06:09:32 UTC**（Asia/Tokyo：**15:09:32**） |
+| 导出名 | 仅 **`napi_register_module_v1`**（+ PE entry）；业务函数在 `napi_register_module_v1` 里动态注册 |
+| Ghidra | 导入 275 / 22 DLL；`-noanalysis` 下仍见已有函数约 1.3 万（先前一次完整分析残留）；关键词串命中 `cu_*` / `SendInput` / `CreateJobObjectW` 等 |
+
+**Computer use 相关 NAPI 名**（来自 `Failed to register function \`...\`` 字符串，静态证据）：  
+`cu_app_under_point`、`cu_control_at_point`、`cu_display_for_pid`、`cu_excluded_window_rects`、`cu_focused_control`、`cu_get_app_icon`、`cu_get_own_bundle_id`、`cu_hide_apps`、`cu_unhide_apps`、`cu_is_remote_session`、`cu_list_displays`、`cu_list_installed_apps`、`cu_list_open_windows`、`cu_list_running_apps`、`cu_masked_window_rects`、`cu_windows_directory`、`mouse_button`、`mouse_location`、`mouse_scroll`、`move_mouse`、`type_text`、`type_text_paced`、`validate_keys`、`focus_window`、`encode_frame_jpeg` 等。
+
+对应 Win32 导入：`SendInput`、`GetAsyncKeyState`、`SetWindowsHookExW`/`SetWinEventHook`、`EnumWindows`、`GetCursorPos`、`GetDC`、`GetForegroundWindow`、`MapVirtualKeyExW`、`VkKeyScanExW`；另有 `CreateJobObjectW`/`AssignProcessToJobObject`/`TerminateJobObject`、`CryptProtectData`/`NCrypt*`。
+
+**同模块还注册了大量非 CU API**（同样来自注册失败字符串，**待验证**调用面）：进程/Job（`create_process_job`、`join_app_job`、`is_process_in_app_job`…）、HCS（`get_hcs_status`）、MSIX 包（`get_current_package_family_name`、`switch_to_package`…）、注册表、Windows Hello、DPAPI、命名管道、录屏/VoiceOver（`watch_recorder_*`、`watch_voiceover_*`）等。说明 native 层不止 Computer use，容器方案需一并考虑这些能力是否越权。
+
+### 7.5 对容器方案的直接影响
+
+1. `claude.exe` ≈ Electron 44.9.3 + Chrome 152 壳 → 隔离目标是**进程树 + 数据目录 + 网络**，不是「逆向改造一个专用二进制」。
+2. 代理：外壳具备 WinHTTP 代理发现 API；与 §5 的系统代理 / `--proxy-server` 路线一致（**待验证** Chromium 网栈是否全部走代理）。
+3. Computer use / 键鼠注入在 **native `.node`**，不在壳的业务逻辑里；关掉 Computer use 时仍可能加载该模块（**待验证**）。
+4. 全量 Ghidra 反编译 `claude.exe` 性价比极低；后续优先 asar/JS、native `.node`、`cowork-svc.exe`。
+
+### 7.6 本次失败 / 限制（如实记录）
+
+- 首次脚本用 Jython：Ghidra 12.2 默认未启用 Jython → 已解压官方 `Jython` 扩展；最终改用 Java 脚本成功。
+- `claude.exe` 的 Ghidra 串扫描跳过了 `.text`（≈183 MB）与 `.rdata`（≈43 MB），Electron 版本串来自主机 `strings`，不是 Ghidra 内存扫描。
+- 未分析 `Claude_Setup.exe` / `cowork-svc.exe` 的 Ghidra 工程（时间盒内优先主程序 + native）。
+- 未在 Windows 上动态验证任何导入的实际调用。
