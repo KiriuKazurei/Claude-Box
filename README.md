@@ -17,6 +17,7 @@ Docker-like / 容器只是思路方向，不是硬约束。
 
 - [SCOPE.md](./SCOPE.md) — 范围定稿 v0.1
 - [docs/research-v0.md](./docs/research-v0.md) — 初步技术调研 v0
+- [docs/research-v1-runtime.md](./docs/research-v1-runtime.md) — 隔离运行时选型调研 v1
 
 ## 仓库
 
