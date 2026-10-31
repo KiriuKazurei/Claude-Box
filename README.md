@@ -24,7 +24,7 @@
 - [SCOPE.md](./SCOPE.md) — 范围 v0.2
 - [docs/architecture-v1-container.md](./docs/architecture-v1-container.md) — **架构 v1：自建专用容器（主路径，C0–C4）**
 - [docs/research-v2-container.md](./docs/research-v2-container.md) — 自建容器调研 v2
-- [src/ClaudeBox.Container/README.md](./src/cbox/README.md) — **cbox：Rust 容器运行时骨架（未实现）**
+- [src/cbox/README.md](./src/cbox/README.md) — **cbox：Rust 容器运行时骨架（未实现）**
 - [docs/architecture-v0.md](./docs/architecture-v0.md) — 架构方案 v0（Hyper-V，已弃用）
 - [docs/research-v1-runtime.md](./docs/research-v1-runtime.md) — 隔离运行时选型调研 v1
 - [docs/research-v0.md](./docs/research-v0.md) — 初步技术调研 v0
