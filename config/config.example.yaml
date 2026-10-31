@@ -1,0 +1,70 @@
+# Claude Box 配置示例（apiVersion: claude-box/v1alpha1）
+# 复制为 config.yaml 后按需修改。勿把含真实代理口令的文件提交进仓库。
+
+apiVersion: claude-box/v1alpha1
+kind: Box
+
+metadata:
+  name: default
+
+spec:
+  vm:
+    name: ClaudeBox-Win
+    memory_mb: 8192
+    cpus: 4
+    generation: 2
+    # 空则由控件按约定目录生成，例如 %LOCALAPPDATA%\ClaudeBox\disks\...
+    vhd_path: ""
+    # 安装介质或模板（二选一或皆空：仅建空 VM 壳，待手工附加）
+    iso_path: ""
+    template_vhdx: ""
+    switch_name: ClaudeBox-Internal
+
+  gateway:
+    # 双配时优先使用 primary
+    primary: http
+    # 典型：指向宿主机 Clash HTTP / SOCKS 口（访客不直连 Clash TUN）
+    http: "http://127.0.0.1:7890"
+    socks5: "socks5://127.0.0.1:7891"
+    listen_ip: "192.168.87.1"
+    listen_port: 3080
+    subnet: "192.168.87.0/24"
+    upstream_notes: "Upstream = host Clash mixed/HTTP/SOCKS. Host Clash TUN is optional and does not replace this gateway."
+    # 事后用 JSONL 收紧；仅示例域名，按日志复盘增删
+    blocklist:
+      - google-analytics.com
+      - api2.amplitude.com
+    logging:
+      enabled: true
+      # 空则默认 %LOCALAPPDATA%\ClaudeBox\logs\gateway.jsonl
+      path: ""
+      max_mb: 64
+
+  # 仅列出要进访客的路径；不要把宿主 C:\ 整盘写进来（见 features.exclude_host_system_drive）
+  visible_dirs:
+    - host_path: "D:\\Projects\\demo"
+      read_only: false
+
+  # M3 挂载：主策略 smb_internal（宿主 Internal IP 上 SMB → 访客 net use）
+  # 备选 method: copy_vmfile | enhanced_session_manual
+  mount:
+    method: smb_internal
+    guest_root: "Z:"
+    share_prefix: ClaudeBox
+
+  identity:
+    hostname: claude-box
+    timezone: UTC
+    locale: en-US
+
+  guest:
+    fake_env:
+      enabled: true
+      workgroup: CLAUDEBOX
+      minimal_desktop: true
+
+  features:
+    # 默认拒绝把宿主系统盘 C: 挂进访客
+    exclude_host_system_drive: true
+    # true 时控件应警告：环境伪装削弱（且仍受 exclude_host_system_drive 约束）
+    full_disk: false

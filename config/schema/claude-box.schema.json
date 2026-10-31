@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://claude-box.local/schema/claude-box.schema.json",
+  "title": "ClaudeBoxConfig",
+  "type": "object",
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "type": "string",
+      "const": "claude-box/v1alpha1"
+    },
+    "kind": {
+      "type": "string",
+      "const": "Box"
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": [
+        "vm",
+        "gateway"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "vm": {
+          "type": "object",
+          "required": [
+            "name",
+            "memory_mb"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "memory_mb": {
+              "type": "integer",
+              "minimum": 2048
+            },
+            "cpus": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2
+            },
+            "generation": {
+              "type": "integer",
+              "enum": [
+                1,
+                2
+              ],
+              "default": 2
+            },
+            "vhd_path": {
+              "type": "string"
+            },
+            "iso_path": {
+              "type": "string"
+            },
+            "template_vhdx": {
+              "type": "string"
+            },
+            "switch_name": {
+              "type": "string",
+              "default": "ClaudeBox-Internal"
+            }
+          }
+        },
+        "gateway": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "primary": {
+              "type": "string",
+              "enum": [
+                "http",
+                "socks5"
+              ]
+            },
+            "http": {
+              "type": "string"
+            },
+            "socks5": {
+              "type": "string"
+            },
+            "listen_ip": {
+              "type": "string",
+              "default": "192.168.87.1"
+            },
+            "subnet": {
+              "type": "string",
+              "default": "192.168.87.0/24"
+            },
+            "upstream_notes": {
+              "type": "string"
+            },
+            "logging": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "path": {
+                  "type": "string"
+                },
+                "max_mb": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 64
+                }
+              }
+            },
+            "listen_port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535,
+              "default": 3080
+            },
+            "blocklist": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "Host suffixes to deny at gateway (logged action=deny). Expand after soak via JSONL."
+            }
+          },
+          "anyOf": [
+            {
+              "required": [
+                "http"
+              ]
+            },
+            {
+              "required": [
+                "socks5"
+              ]
+            }
+          ]
+        },
+        "visible_dirs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "host_path"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "host_path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "read_only": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          }
+        },
+        "identity": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "default": "claude-box"
+            },
+            "timezone": {
+              "type": "string",
+              "default": "UTC"
+            },
+            "locale": {
+              "type": "string",
+              "default": "en-US"
+            }
+          }
+        },
+        "guest": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fake_env": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "workgroup": {
+                  "type": "string",
+                  "default": "CLAUDEBOX"
+                },
+                "minimal_desktop": {
+                  "type": "boolean",
+                  "default": true
+                }
+              }
+            }
+          }
+        },
+        "features": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "exclude_host_system_drive": {
+              "type": "boolean",
+              "default": true
+            },
+            "full_disk": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "mount": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "How host visible_dirs are exposed into the guest (M3).",
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": [
+                "smb_internal",
+                "copy_vmfile",
+                "enhanced_session_manual"
+              ],
+              "default": "smb_internal"
+            },
+            "guest_root": {
+              "type": "string",
+              "default": "Z:",
+              "description": "Starting drive letter for guest mappings."
+            },
+            "share_prefix": {
+              "type": "string",
+              "default": "ClaudeBox",
+              "description": "SMB share name prefix on the host."
+            }
+          }
+        }
+      }
+    }
+  }
+}
