@@ -33,3 +33,13 @@ Copy-Item .\config\config.example.yaml .\config\config.yaml
 ```
 
 **待验证**：真 SMB 跨 Internal、Copy-VMFile、Claude MSIX 经网关下载、Computer use。
+
+## M4 控件 UI
+
+```powershell
+.\scripts\win11\Start-ClaudeBoxControlUi.ps1
+.\scripts\win11\Start-ClaudeBoxControlUi.ps1 -SelfCheck
+```
+
+见 `src/ClaudeBox.Control/ui/README.md`。
+

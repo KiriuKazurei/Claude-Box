@@ -2,7 +2,7 @@
 
 隔离运行 Claude Desktop 的独立产品（运行时形态可换）。
 
-**状态：MVP in progress · M3（Claude + 挂载 + 假环境）**
+**状态：MVP in progress · M4（最小控件 UI）**
 
 ## 目标
 
@@ -20,7 +20,7 @@
 ## 文档
 
 - [SCOPE.md](./SCOPE.md) — 范围定稿 v0.1
-- [docs/architecture-v0.md](./docs/architecture-v0.md) — **架构方案 v0**（MVP 决策 / 里程碑；含 M3）
+- [docs/architecture-v0.md](./docs/architecture-v0.md) — **架构方案 v0**（MVP 决策 / 里程碑；含 M4）
 - [docs/research-v1-runtime.md](./docs/research-v1-runtime.md) — 隔离运行时选型调研 v1
 - [docs/research-v0.md](./docs/research-v0.md) — 初步技术调研 v0
 - [src/ClaudeBox.Gateway/README.md](./src/ClaudeBox.Gateway/README.md) — M2 网关
@@ -30,7 +30,7 @@
 ## 仓库骨架
 
 ```
-src/ClaudeBox.Control/   # 宿主机：VM / 交换机 / 拒挂 C: / SMB 挂载计划 / 网关接线
+src/ClaudeBox.Control/   # 宿主机：VM / 挂载 / 网关接线 / Save-Config / ui（WinForms）
 src/ClaudeBox.Gateway/   # 运行时配置、gost 中继计划、JSONL 日志
 src/ClaudeBox.Guest/     # 假环境 Apply、Claude MSIX、访客挂载、健康检查
 config/                  # config.example.yaml + JSON schema
@@ -63,6 +63,24 @@ Copy-Item .\config\config.example.yaml .\config\config.yaml
 #   .\Mount-ClaudeBoxGuestShares.ps1 -PlanPath .\mount-plan.json -Apply
 #   .\Test-ClaudeBoxGuestHealth.ps1 -ExpectedHostname claude-box -ExpectedTimezone UTC -ExpectedLocale en-US -ExpectedMountLetters Z:
 ```
+
+## 在 Win11 上跑 M4（控件 UI）
+
+> PowerShell **WinForms** 最小控件；无独立 .NET 工程。真机 Hyper-V 联调 **待验证**。
+
+```powershell
+cd path\to\Claude-Box
+Set-ExecutionPolicy -Scope Process Bypass
+Copy-Item .\config\config.example.yaml .\config\config.yaml   # 若尚无
+
+# 图形界面（建议管理员 PowerShell）
+.\scripts\win11\Start-ClaudeBoxControlUi.ps1
+
+# 逻辑自检（Linux / CI 也可用）
+pwsh -File .\src\ClaudeBox.Control\ui\Start-ClaudeBoxControlUi.ps1 -SelfCheck
+```
+
+说明：[src/ClaudeBox.Control/ui/README.md](./src/ClaudeBox.Control/ui/README.md)。
 
 ## 在 Win11 上跑 M2（网关）
 

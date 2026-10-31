@@ -51,7 +51,10 @@ $required = @(
     'scripts/win11/Start-ClaudeBoxGateway.ps1',
     'scripts/win11/Stop-ClaudeBoxGateway.ps1',
     'scripts/win11/Test-ClaudeBoxDirectEgressBlocked.ps1',
-    'scripts/win11/Set-ClaudeBoxInternalGatewayRouting.md'
+    'scripts/win11/Set-ClaudeBoxInternalGatewayRouting.md',
+    'scripts/win11/Start-ClaudeBoxControlUi.ps1',
+    'src/ClaudeBox.Control/ui/Start-ClaudeBoxControlUi.ps1',
+    'src/ClaudeBox.Control/ui/README.md'
 )
 
 foreach ($r in $required) { Assert-Path $r }
@@ -374,13 +377,94 @@ try {
 
 # MVP keywords in architecture
 $arch = Get-Content -LiteralPath (Join-Path $RepoRoot 'docs/architecture-v0.md') -Raw
-foreach ($kw in @('exclude_host_system_drive', 'gateway.logging', 'Clash', '假', 'M3', 'smb_internal', 'gost', '待验证')) {
+foreach ($kw in @('exclude_host_system_drive', 'gateway.logging', 'Clash', '假', 'M3', 'M4', 'smb_internal', 'gost', 'Save-ClaudeBoxConfig', 'WinForms', '待验证')) {
     if ($arch -notmatch [regex]::Escape($kw)) {
         Write-Host "FAIL architecture missing keyword: $kw"
         $failed++
     }
 }
-Write-Host 'OK   architecture MVP/M3 keywords'
+Write-Host 'OK   architecture MVP/M4 keywords'
+
+
+# --- M4: Save-ClaudeBoxConfig + UI SelfCheck ---
+$uiScript = Join-Path $RepoRoot 'src/ClaudeBox.Control/ui/Start-ClaudeBoxControlUi.ps1'
+try {
+    $tmpOut = Join-Path ([IO.Path]::GetTempPath()) ('claude-box-m4-{0}.yaml' -f [guid]::NewGuid().ToString('n'))
+    $saved = Save-ClaudeBoxConfig -Path $tmpOut `
+        -VmName 'ClaudeBox-M4' `
+        -GatewayHttp 'http://127.0.0.1:7890' `
+        -GatewaySocks5 'socks5://127.0.0.1:7891' `
+        -LoggingEnabled $true `
+        -VisibleDirs @(@{ HostPath = 'D:\Work\proj'; ReadOnly = $true }) `
+        -ExistingParsed $cfg.Parsed
+    $again = Get-ClaudeBoxConfig -Path $saved.Path
+    if ($again.Parsed.VmName -ne 'ClaudeBox-M4') {
+        Write-Host ("FAIL Save VmName={0}" -f $again.Parsed.VmName)
+        $failed++
+    } elseif (-not $again.Parsed.LoggingEnabled) {
+        Write-Host 'FAIL Save LoggingEnabled'
+        $failed++
+    } elseif (@($again.Parsed.VisibleDirs) -notcontains 'D:\Work\proj' -and (@($again.Parsed.VisibleDirs) | Where-Object { $_ -match 'Work' }).Count -lt 1) {
+        Write-Host ("FAIL Save VisibleDirs={0}" -f (@($again.Parsed.VisibleDirs) -join ','))
+        $failed++
+    } else {
+        Write-Host 'OK   Save-ClaudeBoxConfig roundtrip'
+    }
+    Remove-Item -LiteralPath $tmpOut -Force -ErrorAction SilentlyContinue
+} catch {
+    Write-Host "FAIL Save-ClaudeBoxConfig: $($_.Exception.Message)"
+    $failed++
+}
+
+try {
+    $null = Save-ClaudeBoxConfig -Path (Join-Path ([IO.Path]::GetTempPath()) 'claude-box-m4-bad.yaml') `
+        -VmName 'bad' -GatewayHttp 'http://127.0.0.1:1' -VisibleDirs @('C:\') -ExcludeHostSystemDrive $true
+    Write-Host 'FAIL Save-ClaudeBoxConfig should reject C:\'
+    $failed++
+} catch {
+    if ($_.Exception.Message -match 'system drive|C:') {
+        Write-Host 'OK   Save-ClaudeBoxConfig rejects C:\'
+    } else {
+        Write-Host "FAIL Save C: reject message: $($_.Exception.Message)"
+        $failed++
+    }
+}
+
+try {
+    Connect-ClaudeBoxVM -Name 'ClaudeBox-Win'
+    if (-not (Test-ClaudeBoxIsWindowsHost)) {
+        Write-Host 'FAIL Connect should throw on non-Windows'
+        $failed++
+    } else {
+        Write-Host 'OK   Connect-ClaudeBoxVM on Windows (launched or no-op)'
+    }
+} catch {
+    if (-not (Test-ClaudeBoxIsWindowsHost) -and $_.Exception.Message -match 'Windows') {
+        Write-Host 'OK   Connect-ClaudeBoxVM refuses non-Windows'
+    } elseif (Test-ClaudeBoxIsWindowsHost) {
+        Write-Host ("OK   Connect-ClaudeBoxVM host error acceptable: {0}" -f $_.Exception.Message)
+    } else {
+        Write-Host "FAIL Connect-ClaudeBoxVM: $($_.Exception.Message)"
+        $failed++
+    }
+}
+
+$uiOut = & $uiScript -SelfCheck *>&1 | Out-String
+if ($LASTEXITCODE -ne 0 -or $uiOut -notmatch 'SelfCheck RESULT: PASSED') {
+    Write-Host "FAIL UI SelfCheck exit=$LASTEXITCODE"
+    Write-Host $uiOut
+    $failed++
+} else {
+    Write-Host 'OK   UI -SelfCheck PASSED'
+}
+
+$readmeUi = Get-Content -LiteralPath (Join-Path $RepoRoot 'README.md') -Raw
+if ($readmeUi -notmatch 'M4' -or $readmeUi -notmatch 'Start-ClaudeBoxControlUi') {
+    Write-Host 'FAIL README missing M4 / Start-ClaudeBoxControlUi'
+    $failed++
+} else {
+    Write-Host 'OK   README mentions M4 UI'
+}
 
 # sample jsonl readable
 $sample = Join-Path $RepoRoot 'src/ClaudeBox.Gateway/samples/gateway.log.example.jsonl'

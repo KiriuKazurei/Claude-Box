@@ -6,6 +6,8 @@
 .DESCRIPTION
   M1：配置字段抽取、拒绝宿主 C:、New-ClaudeBoxVM（Gen2 + Internal）。
   M2：Set-ClaudeBoxGatewayUpstream 接到 Gateway 中继/日志。
+  M3：SMB 挂载计划 / Guest bundle。
+  M4：Save-ClaudeBoxConfig + Connect-ClaudeBoxVM（供 WinForms 控件）。
   实际 Hyper-V cmdlet 仅在已启用 Hyper-V 的 Win11 上执行；Linux 上可语法解析。
 
 .NOTES
@@ -994,6 +996,284 @@ function Get-ClaudeBoxFakeEnvPlan {
     }
 }
 
+
+function ConvertTo-ClaudeBoxYamlDoubleQuoted {
+    <#
+    .SYNOPSIS
+      把字符串写成 YAML 双引号标量（转义 \ 与 "）。
+    #>
+    [CmdletBinding()]
+    param(
+        [AllowNull()]
+        [AllowEmptyString()]
+        [string] $Value
+    )
+    if ($null -eq $Value) { $Value = '' }
+    $escaped = $Value.Replace('\', '\\').Replace('"', '\"')
+    return '"{0}"' -f $escaped
+}
+
+function Save-ClaudeBoxConfig {
+    <#
+    .SYNOPSIS
+      把控件可编辑字段写成 config.yaml（MVP：整文件重生成，保留 schema 形状）。
+
+    .DESCRIPTION
+      用于 M4 UI。写入前校验 visible_dirs 不得含宿主系统盘（exclude 默认 true）。
+      非完整 YAML 合并；未在 UI 暴露的字段使用 Defaults / ExistingParsed 回填。
+
+    .PARAMETER Path
+      目标路径（通常 config/config.yaml）。
+
+    .PARAMETER VmName
+      Hyper-V VM 名。
+
+    .PARAMETER GatewayHttp / GatewaySocks5
+      上游代理 URL。
+
+    .PARAMETER LoggingEnabled / LoggingPath
+      连接日志开关与路径。
+
+    .PARAMETER VisibleDirs
+      字符串路径数组，或 @{HostPath=; ReadOnly=} 对象数组。
+
+    .PARAMETER ExistingParsed
+      可选：Get-ClaudeBoxConfig 的 Parsed，用来保留 memory/cpus/identity 等。
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Path,
+        [string] $VmName = 'ClaudeBox-Win',
+        [string] $GatewayHttp = '',
+        [string] $GatewaySocks5 = '',
+        [string] $GatewayPrimary = 'http',
+        [string] $ListenIp = '192.168.87.1',
+        [int] $ListenPort = 3080,
+        [string] $Subnet = '192.168.87.0/24',
+        [bool] $LoggingEnabled = $true,
+        [string] $LoggingPath = '',
+        [int] $LoggingMaxMb = 64,
+        [object[]] $VisibleDirs = @(),
+        [bool] $ExcludeHostSystemDrive = $true,
+        [bool] $FullDisk = $false,
+        [int] $MemoryMb = 8192,
+        [int] $Cpus = 4,
+        [int] $Generation = 2,
+        [string] $VhdPath = '',
+        [string] $IsoPath = '',
+        [string] $TemplateVhdx = '',
+        [string] $SwitchName = 'ClaudeBox-Internal',
+        [string] $Hostname = 'claude-box',
+        [string] $Timezone = 'UTC',
+        [string] $Locale = 'en-US',
+        [bool] $FakeEnvEnabled = $true,
+        [string] $Workgroup = 'CLAUDEBOX',
+        [bool] $MinimalDesktop = $true,
+        [string] $MountMethod = 'smb_internal',
+        [string] $GuestMountRoot = 'Z:',
+        [string] $SharePrefix = 'ClaudeBox',
+        [string[]] $Blocklist = @('google-analytics.com', 'api2.amplitude.com'),
+        [string] $UpstreamNotes = 'Upstream = host Clash mixed/HTTP/SOCKS. Host Clash TUN is optional and does not replace this gateway.',
+        $ExistingParsed = $null
+    )
+
+    if ($null -ne $ExistingParsed) {
+        $ep = $ExistingParsed
+        if ($PSBoundParameters.ContainsKey('VmName') -eq $false -and $ep.VmName) { $VmName = [string]$ep.VmName }
+        # Prefer explicit UI params; fill blanks from ExistingParsed for non-UI fields
+        if ($MemoryMb -eq 8192 -and $ep.MemoryMb) { $MemoryMb = [int]$ep.MemoryMb }
+        if ($Cpus -eq 4 -and $ep.Cpus) { $Cpus = [int]$ep.Cpus }
+        if ($Generation -eq 2 -and $ep.Generation) { $Generation = [int]$ep.Generation }
+        if (-not $VhdPath -and $ep.VhdPath) { $VhdPath = [string]$ep.VhdPath }
+        if (-not $IsoPath -and $ep.IsoPath) { $IsoPath = [string]$ep.IsoPath }
+        if (-not $TemplateVhdx -and $ep.TemplateVhdx) { $TemplateVhdx = [string]$ep.TemplateVhdx }
+        if ($SwitchName -eq 'ClaudeBox-Internal' -and $ep.SwitchName) { $SwitchName = [string]$ep.SwitchName }
+        if ($ListenIp -eq '192.168.87.1' -and $ep.ListenIp) { $ListenIp = [string]$ep.ListenIp }
+        if ($ListenPort -eq 3080 -and $ep.ListenPort) { $ListenPort = [int]$ep.ListenPort }
+        if ($Subnet -eq '192.168.87.0/24' -and $ep.Subnet) { $Subnet = [string]$ep.Subnet }
+        if ($Hostname -eq 'claude-box' -and $ep.Hostname) { $Hostname = [string]$ep.Hostname }
+        if ($Timezone -eq 'UTC' -and $ep.Timezone) { $Timezone = [string]$ep.Timezone }
+        if ($Locale -eq 'en-US' -and $ep.Locale) { $Locale = [string]$ep.Locale }
+        if ($Workgroup -eq 'CLAUDEBOX' -and $ep.Workgroup) { $Workgroup = [string]$ep.Workgroup }
+        if ($MountMethod -eq 'smb_internal' -and $ep.MountMethod) { $MountMethod = [string]$ep.MountMethod }
+        if ($GuestMountRoot -eq 'Z:' -and $ep.GuestMountRoot) { $GuestMountRoot = [string]$ep.GuestMountRoot }
+        if ($SharePrefix -eq 'ClaudeBox' -and $ep.HostSharePrefix) { $SharePrefix = [string]$ep.HostSharePrefix }
+        if ($LoggingMaxMb -eq 64 -and $ep.LoggingMaxMb) { $LoggingMaxMb = [int]$ep.LoggingMaxMb }
+        if ($Blocklist.Count -eq 2 -and $ep.Blocklist -and @($ep.Blocklist).Count -gt 0) {
+            $Blocklist = [string[]]@($ep.Blocklist)
+        }
+        if ($null -ne $ep.ExcludeHostSystemDrive -and -not $PSBoundParameters.ContainsKey('ExcludeHostSystemDrive')) {
+            $ExcludeHostSystemDrive = [bool]$ep.ExcludeHostSystemDrive
+        }
+        if ($null -ne $ep.FullDisk -and -not $PSBoundParameters.ContainsKey('FullDisk')) {
+            $FullDisk = [bool]$ep.FullDisk
+        }
+        if ($null -ne $ep.FakeEnvEnabled -and -not $PSBoundParameters.ContainsKey('FakeEnvEnabled')) {
+            $FakeEnvEnabled = [bool]$ep.FakeEnvEnabled
+        }
+        if ($null -ne $ep.MinimalDesktop -and -not $PSBoundParameters.ContainsKey('MinimalDesktop')) {
+            $MinimalDesktop = [bool]$ep.MinimalDesktop
+        }
+    }
+
+    $dirEntries = New-Object System.Collections.Generic.List[object]
+    foreach ($d in @($VisibleDirs)) {
+        if ($null -eq $d) { continue }
+        if ($d -is [string]) {
+            if ([string]::IsNullOrWhiteSpace($d)) { continue }
+            $dirEntries.Add([pscustomobject]@{ HostPath = $d.Trim(); ReadOnly = $false })
+        } else {
+            $hp = ''
+            $ro = $false
+            if ($d.PSObject.Properties['HostPath']) { $hp = [string]$d.HostPath }
+            elseif ($d.PSObject.Properties['host_path']) { $hp = [string]$d.host_path }
+            elseif ($d -is [hashtable]) {
+                if ($d.ContainsKey('HostPath')) { $hp = [string]$d['HostPath'] }
+                elseif ($d.ContainsKey('host_path')) { $hp = [string]$d['host_path'] }
+            }
+            if ($d.PSObject.Properties['ReadOnly']) { $ro = [bool]$d.ReadOnly }
+            elseif ($d.PSObject.Properties['read_only']) { $ro = [bool]$d.read_only }
+            elseif ($d -is [hashtable] -and $d.ContainsKey('ReadOnly')) { $ro = [bool]$d['ReadOnly'] }
+            elseif ($d -is [hashtable] -and $d.ContainsKey('read_only')) { $ro = [bool]$d['read_only'] }
+            if (-not [string]::IsNullOrWhiteSpace($hp)) {
+                $dirEntries.Add([pscustomobject]@{ HostPath = $hp.Trim(); ReadOnly = $ro })
+            }
+        }
+    }
+
+    $parsedGuard = [pscustomobject]@{
+        ExcludeHostSystemDrive = $ExcludeHostSystemDrive
+        VisibleDirs            = @($dirEntries | ForEach-Object { $_.HostPath })
+    }
+    Assert-ClaudeBoxVisibleDirsSafe -Parsed $parsedGuard
+
+    if ([string]::IsNullOrWhiteSpace($GatewayHttp) -and [string]::IsNullOrWhiteSpace($GatewaySocks5)) {
+        throw 'Need gateway.http and/or gateway.socks5'
+    }
+    if ([string]::IsNullOrWhiteSpace($GatewayPrimary)) {
+        $GatewayPrimary = if ($GatewayHttp) { 'http' } else { 'socks5' }
+    }
+    if ($ListenPort -lt 1 -or $ListenPort -gt 65535) { $ListenPort = 3080 }
+    if ($MemoryMb -lt 2048) { $MemoryMb = 8192 }
+    if ($Cpus -lt 1) { $Cpus = 2 }
+    if ($Generation -ne 1 -and $Generation -ne 2) { $Generation = 2 }
+
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.AppendLine('# Claude Box config (written by Save-ClaudeBoxConfig / Control UI)')
+    [void]$sb.AppendLine('# Do not commit secrets. Host C: must not appear in visible_dirs when exclude_host_system_drive=true.')
+    [void]$sb.AppendLine('')
+    [void]$sb.AppendLine('apiVersion: claude-box/v1alpha1')
+    [void]$sb.AppendLine('kind: Box')
+    [void]$sb.AppendLine('')
+    [void]$sb.AppendLine('metadata:')
+    [void]$sb.AppendLine('  name: default')
+    [void]$sb.AppendLine('')
+    [void]$sb.AppendLine('spec:')
+    [void]$sb.AppendLine('  vm:')
+    [void]$sb.AppendLine(('    name: {0}' -f $VmName))
+    [void]$sb.AppendLine(('    memory_mb: {0}' -f $MemoryMb))
+    [void]$sb.AppendLine(('    cpus: {0}' -f $Cpus))
+    [void]$sb.AppendLine(('    generation: {0}' -f $Generation))
+    [void]$sb.AppendLine(('    vhd_path: {0}' -f (ConvertTo-ClaudeBoxYamlDoubleQuoted $VhdPath)))
+    [void]$sb.AppendLine(('    iso_path: {0}' -f (ConvertTo-ClaudeBoxYamlDoubleQuoted $IsoPath)))
+    [void]$sb.AppendLine(('    template_vhdx: {0}' -f (ConvertTo-ClaudeBoxYamlDoubleQuoted $TemplateVhdx)))
+    [void]$sb.AppendLine(('    switch_name: {0}' -f $SwitchName))
+    [void]$sb.AppendLine('')
+    [void]$sb.AppendLine('  gateway:')
+    [void]$sb.AppendLine(('    primary: {0}' -f $GatewayPrimary))
+    [void]$sb.AppendLine(('    http: {0}' -f (ConvertTo-ClaudeBoxYamlDoubleQuoted $GatewayHttp)))
+    [void]$sb.AppendLine(('    socks5: {0}' -f (ConvertTo-ClaudeBoxYamlDoubleQuoted $GatewaySocks5)))
+    [void]$sb.AppendLine(('    listen_ip: {0}' -f (ConvertTo-ClaudeBoxYamlDoubleQuoted $ListenIp)))
+    [void]$sb.AppendLine(('    listen_port: {0}' -f $ListenPort))
+    [void]$sb.AppendLine(('    subnet: {0}' -f (ConvertTo-ClaudeBoxYamlDoubleQuoted $Subnet)))
+    [void]$sb.AppendLine(('    upstream_notes: {0}' -f (ConvertTo-ClaudeBoxYamlDoubleQuoted $UpstreamNotes)))
+    [void]$sb.AppendLine('    blocklist:')
+    if (@($Blocklist).Count -eq 0) {
+        [void]$sb.AppendLine('      []')
+    } else {
+        foreach ($b in @($Blocklist)) {
+            if ([string]::IsNullOrWhiteSpace($b)) { continue }
+            [void]$sb.AppendLine(('      - {0}' -f $b.Trim()))
+        }
+    }
+    [void]$sb.AppendLine('    logging:')
+    [void]$sb.AppendLine(('      enabled: {0}' -f $(if ($LoggingEnabled) { 'true' } else { 'false' })))
+    [void]$sb.AppendLine(('      path: {0}' -f (ConvertTo-ClaudeBoxYamlDoubleQuoted $LoggingPath)))
+    [void]$sb.AppendLine(('      max_mb: {0}' -f $LoggingMaxMb))
+    [void]$sb.AppendLine('')
+    [void]$sb.AppendLine('  visible_dirs:')
+    if ($dirEntries.Count -eq 0) {
+        [void]$sb.AppendLine('    []')
+    } else {
+        foreach ($e in $dirEntries) {
+            [void]$sb.AppendLine(('    - host_path: {0}' -f (ConvertTo-ClaudeBoxYamlDoubleQuoted $e.HostPath)))
+            [void]$sb.AppendLine(('      read_only: {0}' -f $(if ($e.ReadOnly) { 'true' } else { 'false' })))
+        }
+    }
+    [void]$sb.AppendLine('')
+    [void]$sb.AppendLine('  mount:')
+    [void]$sb.AppendLine(('    method: {0}' -f $MountMethod))
+    [void]$sb.AppendLine(('    guest_root: {0}' -f (ConvertTo-ClaudeBoxYamlDoubleQuoted $GuestMountRoot)))
+    [void]$sb.AppendLine(('    share_prefix: {0}' -f $SharePrefix))
+    [void]$sb.AppendLine('')
+    [void]$sb.AppendLine('  identity:')
+    [void]$sb.AppendLine(('    hostname: {0}' -f $Hostname))
+    [void]$sb.AppendLine(('    timezone: {0}' -f $Timezone))
+    [void]$sb.AppendLine(('    locale: {0}' -f $Locale))
+    [void]$sb.AppendLine('')
+    [void]$sb.AppendLine('  guest:')
+    [void]$sb.AppendLine('    fake_env:')
+    [void]$sb.AppendLine(('      enabled: {0}' -f $(if ($FakeEnvEnabled) { 'true' } else { 'false' })))
+    [void]$sb.AppendLine(('      workgroup: {0}' -f $Workgroup))
+    [void]$sb.AppendLine(('      minimal_desktop: {0}' -f $(if ($MinimalDesktop) { 'true' } else { 'false' })))
+    [void]$sb.AppendLine('')
+    [void]$sb.AppendLine('  features:')
+    [void]$sb.AppendLine(('    exclude_host_system_drive: {0}' -f $(if ($ExcludeHostSystemDrive) { 'true' } else { 'false' })))
+    [void]$sb.AppendLine(('    full_disk: {0}' -f $(if ($FullDisk) { 'true' } else { 'false' })))
+    [void]$sb.AppendLine('')
+
+    $yaml = $sb.ToString()
+    $dir = Split-Path -Parent $Path
+    if ($dir -and -not (Test-Path -LiteralPath $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+
+    if ($PSCmdlet.ShouldProcess($Path, 'Write Claude Box config.yaml')) {
+        Set-Content -LiteralPath $Path -Value $yaml -Encoding UTF8
+    }
+
+    return [pscustomobject]@{
+        Path         = $Path
+        VmName       = $VmName
+        VisibleCount = $dirEntries.Count
+        Bytes        = [System.Text.Encoding]::UTF8.GetByteCount($yaml)
+    }
+}
+
+function Connect-ClaudeBoxVM {
+    <#
+    .SYNOPSIS
+      打开 vmconnect 连到命名访客（Enhanced Session 待验证）。
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Name
+    )
+
+    if (-not (Test-ClaudeBoxIsWindowsHost)) {
+        throw 'Connect-ClaudeBoxVM requires Windows + Hyper-V (vmconnect).'
+    }
+    $vmconnect = Join-Path $env:windir 'System32\vmconnect.exe'
+    if (-not (Test-Path -LiteralPath $vmconnect)) {
+        throw 'vmconnect.exe not found; open Hyper-V Manager Connect manually.'
+    }
+    Start-Process -FilePath $vmconnect -ArgumentList @('localhost', $Name)
+    return [pscustomobject]@{ Name = $Name; Launched = $true; Verified = $false }
+}
+
+
 Export-ModuleMember -Function @(
     'Test-ClaudeBoxIsWindowsHost',
     'Get-ClaudeBoxConfig',
@@ -1007,10 +1287,13 @@ Export-ModuleMember -Function @(
     'New-ClaudeBoxVM',
     'Start-ClaudeBoxVM',
     'Stop-ClaudeBoxVM',
+    'Connect-ClaudeBoxVM',
     'New-ClaudeBoxMountPlan',
     'Save-ClaudeBoxMountPlan',
     'Publish-ClaudeBoxGuestBundle',
     'Mount-ClaudeBoxVisibleDirs',
     'Set-ClaudeBoxGatewayUpstream',
-    'Get-ClaudeBoxFakeEnvPlan'
+    'Get-ClaudeBoxFakeEnvPlan',
+    'ConvertTo-ClaudeBoxYamlDoubleQuoted',
+    'Save-ClaudeBoxConfig'
 )

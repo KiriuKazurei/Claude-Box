@@ -5,7 +5,7 @@
 - **依赖调研**：[research-v1-runtime.md](./research-v1-runtime.md)（尤其 §2.6 Hyper-V Win、§3 唯一网关）
 - **性质**：产品架构与仓库骨架约定；标「待验证」处禁止当定论
 - **不做**：本文件不声称已在 Hyper-V 上跑通；不 push 远程
-- **状态**：**MVP in progress · M3（Claude + 挂载 + 假环境落地）骨架已落地；真 Hyper-V / Claude / SMB 联调待验证**
+- **状态**：**MVP in progress · M4（最小控件 UI）骨架已落地；真 Hyper-V / WinForms / vmconnect 联调待验证**
 
 ---
 
@@ -112,12 +112,12 @@ flowchart TB
 
 | 职责 | 说明 |
 |---|---|
-| 读配置 | 加载 `config.yaml`，校验 schema（M1：最小字段抽取；其后 YAML 库） |
+| 读/写配置 | 加载 `config.yaml`；**M4 `Save-ClaudeBoxConfig`** 写回（最小字段抽取读 + 整文件写） |
 | Hyper-V 生命周期 | 检查功能、Internal 交换机、**New-ClaudeBoxVM**（Gen2）、启停、销毁 |
 | 挂载编排 | `visible_dirs`；**`exclude_host_system_drive` 默认 true** → 拒绝把宿主 `C:\` 当可见根挂入 |
 | 网关编排 | 启动/停止宿主侧网关；应用上游与**日志开关/路径** |
 | 注入假环境 | 把 `identity` / `guest.fake_env` 交给 Guest 初始化 |
-| 透窗 | Enhanced Session / `vmconnect`（体验 **待验证**） |
+| 透窗 | Enhanced Session / `Connect-ClaudeBoxVM` → `vmconnect`（体验 **待验证**） |
 
 **边界**：不实现透明代理协议栈本身；不在 Control 里装 Claude。
 
@@ -247,6 +247,19 @@ MVP：**http 与 socks5 至少一个非空**。
 
 **明确不足**：不声称已在真 Hyper-V 访客内装好 Claude 或挂载已通。
 
+## 5.2 M4 落地说明（2026-10-31）
+
+| 交付 | 路径 | 状态 |
+|---|---|---|
+| 配置写回 | `Save-ClaudeBoxConfig`（整文件按 schema 形状重生成；保存前 `Assert-ClaudeBoxVisibleDirsSafe`） | 已实现；Linux SelfCheck 可测 |
+| vmconnect | `Connect-ClaudeBoxVM` | 脚本完整；真机 Enhanced Session **待验证** |
+| 最小 UI | `src/ClaudeBox.Control/ui/Start-ClaudeBoxControlUi.ps1`（WinForms） | 文件齐全；`-SelfCheck` 无 GUI；弹窗仅 Win11 |
+| 启动入口 | `scripts/win11/Start-ClaudeBoxControlUi.ps1` | 已实现 |
+| UI 能力 | 编辑 VM 名 / HTTP / SOCKS5 / 日志；可见目录增删；拒宿主 C:；Hyper-V 预检；启停网关；创建/启动 VM；挂载；Connect | 接线到既有模块；真机 **待验证** |
+| 技术选型 | PowerShell + `System.Windows.Forms`（无 .csproj）；Win11 用 Windows PowerShell 5.1 或 Desktop pwsh | 见 ui/README |
+
+**明确不足**：不声称已在真 Win11 上弹窗联调成功。
+
 ---
 
 ## 6. 虚假系统环境（假 C）清单
@@ -281,7 +294,7 @@ MVP：**http 与 socks5 至少一个非空**。
 8. 注入假环境参数给 Guest  
 9. 简单状态：VM、网关、上次错误  
 
-（图形 UI → **M4**；M0–M3 以 PowerShell CLI 为主。）
+（图形 UI → **M4** 已落地：`src/ClaudeBox.Control/ui/Start-ClaudeBoxControlUi.ps1`；M0–M3 CLI 仍可用。）
 
 ### 7.2 配置字段（增量见 schema）
 
@@ -311,7 +324,7 @@ Claude-Box/
   docs/architecture-v0.md
   config/config.example.yaml
   config/schema/claude-box.schema.json
-  src/ClaudeBox.Control/
+  src/ClaudeBox.Control/          # + ui/ WinForms
   src/ClaudeBox.Gateway/
   src/ClaudeBox.Guest/
   scripts/win11/
@@ -336,8 +349,8 @@ Claude-Box/
 | **M0 骨架** | 目录、schema、占位模块 | 已完成；结构检查 PASSED |
 | **M1 空访客** | Win11：预检 → Internal 交换机 → **New-ClaudeBoxVM** Gen2 → Start → 进桌面；挂盘策略拒绝宿主 C:；假环境清单就绪 | 骨架完成；真机装系统 **待验证** |
 | **M2 网关硬强制 + 日志** | 出站经网关；直连失败；连接日志可开关落盘；上游可指 Clash；gost 中继计划/启停 | 模块+脚本+样例完成；**真 Hyper-V/gost/Clash 联调待验证** |
-| **M3 Claude + 目录 + 假环境落地** ← **当前** | 假环境 -Apply；MSIX 安装指引/脚本；`smb_internal` 挂载计划+共享骨架；Guest health（Claude/挂载/假环境） | 骨架完成；**真机装 Claude / SMB / Computer use 待验证** |
-| **M4 控件 UI 最小** | CLI/GUI：代理、目录、启停透窗、日志路径 | 对齐 SCOPE |
+| **M3 Claude + 目录 + 假环境落地** | 假环境 -Apply；MSIX 安装指引/脚本；`smb_internal` 挂载计划+共享骨架；Guest health（Claude/挂载/假环境） | 骨架完成；**真机装 Claude / SMB / Computer use 待验证** |
+| **M4 控件 UI 最小** ← **当前** | PowerShell WinForms：代理/目录/日志/VM 名；启停网关与 VM；挂载；`vmconnect`；`Save-ClaudeBoxConfig`；拒宿主 C: | 骨架完成；**真机 UI / Hyper-V 联调待验证** |
 
 ---
 
@@ -371,7 +384,7 @@ Claude-Box/
 9. **HV-9** 可见目录；确认 **宿主 C: 未挂入**  
 10. **HV-10** 假环境：访客 TZ/hostname ≠ 宿主  
 
-**M1** = HV-1…HV-3；**M2** = HV-4…HV-6；**M3** = HV-7…HV-10。
+**M1** = HV-1…HV-3；**M2** = HV-4…HV-6；**M3** = HV-7…HV-10；**M4** = 控件驱动上述步骤（UI 本身真机 **待验证**）。
 
 ---
 
