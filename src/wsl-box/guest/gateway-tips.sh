@@ -26,4 +26,9 @@ cat << MSG
 4. Hardening (optional): nftables output allow only → proxy IP:port.
 
 5. Start Desktop via host Start-ClaudeBoxWsl.ps1 so env is injected automatically.
+
+6. Optional (default OFF): features.kill_on_local_ip_change
+   When the host local IP set changes, host watcher politely closes then force-kills
+   Claude in this box (claude-switcher pattern). Does not replace the gateway.
+   See docs/kill-on-local-ip-change.md and host/Watch-ClaudeBoxLocalIp.ps1.
 MSG

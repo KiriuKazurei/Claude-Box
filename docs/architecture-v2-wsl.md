@@ -32,6 +32,7 @@ Anthropic 文档对 WSL 用户的建议是：**装 Windows Claude Desktop，再�
 | 环境伪装 | `TZ`、`LANG`/`LC_*`、`/etc/localtime`、可选 `--lang`（不改宿主） |
 | 反遥测 | 网关/hosts/nft 拦 Sentry、Datadog RUM、`/api/event_logging` |
 | Computer use | **已降权**；Linux Desktop 官方无 CU |
+| 可选止血（默认关） | 本机 IP 波动 → 礼貌关再强杀 Claude（学 claude-switcher；见 [kill-on-local-ip-change.md](./kill-on-local-ip-change.md)） |
 
 ## 组件布局
 
@@ -100,6 +101,15 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
   - `api.anthropic.com` 的 `/api/event_logging`（路径级；勿误杀主 API——优先用代理 ACL / SNI 规则精细化）
 - 可选：发行版 `nftables` 禁止非代理出网（强化版，W1+）。
 
+### 可选 · 本机 IP 波动杀进程（默认关 · 已知有效）
+
+和零决策（2026-11-02）：增加明确知晓有效的止血方案——**宿主本机 IP 集合变化时，快速杀掉 box 内全部 Claude 进程**。
+
+- 学 [claude-switcher](https://github.com/YOURSJEYO/claude-switcher)：**先礼貌关窗口/发关闭信号，短超时（约 10s）后再强杀**，避免半写坏 userData。
+- 配置：`features.kill_on_local_ip_change: false`（**默认 OFF**）。
+- **不替代** 唯一网关 / 强制代理；只补「出口身份抖了、进程还挂着」的缺口。
+- 专篇与验收：[kill-on-local-ip-change.md](./kill-on-local-ip-change.md)；宿主桩脚本：`src/wsl-box/host/Watch-ClaudeBoxLocalIp.ps1`。
+
 ## 里程碑（WSL 轨）
 
 | ID | 交付 | 验收 |
@@ -109,6 +119,7 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 | **W2** | 安装 Linux Desktop + `apply-spoof` + 经网关启动 | 探针：`Intl` timeZone / locale = 假值；流量进网关 JSONL |
 | **W3** | 遥测拦截复盘 | Sentry/Datadog/event_logging 被拦或 culture 已是假值 |
 | **W4** | 可选：asar 备用补丁、Cowork/KVM 可行性记录 | 仅主路径不足时启用补丁 |
+| **W5** | 可选：`kill_on_local_ip_change` 监视器 | 默认关；打开后 IP 变化 → 礼貌关→强杀；见专篇 |
 
 ## 和零机器上的下一步（W1）
 
@@ -142,3 +153,4 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 - Guest：`src/wsl-box/guest/`
 - 配置示例：`src/wsl-box/config/wsl-box.example.yaml`
 - README：`src/wsl-box/README.md`
+- 可选 IP 波动杀进程：[kill-on-local-ip-change.md](./kill-on-local-ip-change.md)

@@ -27,3 +27,8 @@ config/   wsl-box.example.yaml
 ## 官方说明
 
 Anthropic：WSL 用户应装 Windows Desktop。本轨为不受支持的验证/实现路径，见架构文档风险节。
+
+## 可选：本机 IP 波动杀进程（默认关）
+
+配置 `features.kill_on_local_ip_change: false`。打开后由宿主 `host/Watch-ClaudeBoxLocalIp.ps1` 监视本机 IP；变化则对发行版内 Claude **先礼貌关再强杀**（学 claude-switcher）。专篇：[docs/kill-on-local-ip-change.md](../../docs/kill-on-local-ip-change.md)。
+

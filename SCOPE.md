@@ -46,11 +46,18 @@
    - 优先不改程序；备用 patch asar / hook。  
    - 详见 [docs/spoofing-timezone-locale.md](./docs/spoofing-timezone-locale.md)。
 
+6. **可选 · 本机 IP 波动杀进程（默认关）**  
+   - 学 [claude-switcher](https://github.com/YOURSJEYO/claude-switcher)：先礼貌关再强杀。  
+   - 触发：宿主本机 IP 集合变化时，快速结束 box 内全部 Claude 进程。  
+   - 配置：`features.kill_on_local_ip_change: false`（默认 OFF）。  
+   - 已知有效；不替代唯一网关。详见 [docs/kill-on-local-ip-change.md](./docs/kill-on-local-ip-change.md)。
+
 ## 控件（MVP · WSL 轨）
 
 - 配置网关、上游（含 Clash）、连接日志
 - 选择可见目录（拒绝默认挂宿主 `C:`）
 - 启停 WSL 发行版内 Desktop（WSLg 窗口）
+- 可选开关：本机 IP 波动时杀 Claude（默认关；见上）
 
 ## 暂不进 MVP
 

@@ -29,6 +29,7 @@
 | C3 visible_dirs | 对白名单目录授予容器用户 ACL；拒绝宿主 `C:\Users\<宿主>` 与 `C:\` 根 | 白名单可读写，其它宿主用户文件拒绝访问 |
 | C4 UI | M4 控件改为驱动 Container 而非 VM | 一键启停、查看日志 |
 | 可选 | AppContainer 严格模式（无 Computer use）；Hyper-V/VirtualBox 访客（已弃用） | — |
+| 可选 | `kill_on_local_ip_change`（默认关）：本机 IP 波动 → 礼貌关再强杀 job 内 Claude；学 claude-switcher；见 [kill-on-local-ip-change.md](./kill-on-local-ip-change.md) | 开关关时不杀；开时 IP diff → 进程退出 |
 
 ### C0 定义
 
