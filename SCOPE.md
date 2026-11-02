@@ -17,7 +17,7 @@
 ### 主路径 v0.2（2026-10-31 改）
 
 - 用户机器为 **Win11 家庭版**：无 Hyper-V / Windows Sandbox / Docker Windows 容器。
-- **主路径 = 自建专用容器**（宿主上：专用本地用户 + 受限 token + job object + WFP 强制经网关 + hook 环境伪装），以 Rust 实现 Docker 式 CLI `cbox`（run/ps/stop/rm）。见 [docs/architecture-v1-container.md](./docs/architecture-v1-container.md)。
+- **主路径 = 自建专用容器**（宿主上：专用本地用户 + 受限 token + job object + WFP 强制经网关 + 环境伪装（优先进程环境；hook/asar 备用）），以 Rust 实现 Docker 式 CLI `cbox`（run/ps/stop/rm）。见 [docs/architecture-v1-container.md](./docs/architecture-v1-container.md)。
 - **第一个里程碑 = C0 容器 MVP**：在容器内启动 Claude（隔离 FS 根 + 经网关 + 进程树受 job 限制）。
 - 诚实限制：同内核下硬件/内核信息无法像 VM 那样完全隐藏；Computer use 看到的是宿主真实桌面。
 - 下方 Hyper-V 内容**已弃用**，仅作可选参考。
@@ -35,9 +35,13 @@
 ## 隔离与反遥测（核心）
 
 1. **文件系统**：默认可见目录；排除宿主 `C:`；全盘非默认。
-2. **身份伪装**：访客独立假环境（非映射宿主 C 改名）。
+2. **身份伪装**：访客 / 容器独立假环境（非映射宿主 C 改名）。
 3. **网络**：唯一网关 + 可选日志复盘。
 4. **重点**：降低 Claude 对真宿主机环境的遥测穿透。
+5. **时区 / 系统语言伪装（2026-11-02 和零确认）**  
+   - **优先（不改程序）**：进程环境与区文件——`TZ`、`LANG`/`LC_*`、`/etc/localtime`（Linux/WSL）、可选 `--lang`——让 Electron/`Intl` 读到假值。  
+   - **备用**：环境不够时再 patch asar（如 Linux `lg()`/`bCt()`、Windows `Ph()`/`LTt()`）或 hook API。  
+   - 详见 [docs/spoofing-timezone-locale.md](./docs/spoofing-timezone-locale.md)。
 
 ## 控件（MVP）
 

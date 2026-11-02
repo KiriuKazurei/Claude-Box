@@ -23,6 +23,8 @@
 
 - [SCOPE.md](./SCOPE.md) — 范围 v0.2
 - [docs/architecture-v1-container.md](./docs/architecture-v1-container.md) — **架构 v1：自建专用容器（主路径，C0–C4）**
+- [docs/spoofing-timezone-locale.md](./docs/spoofing-timezone-locale.md) — **时区/语言伪装：环境优先，asar/hook 备用（2026-11-02）**
+- [docs/compare-desktop-windows-vs-linux-wsl.md](./docs/compare-desktop-windows-vs-linux-wsl.md) — Windows vs Linux Desktop（WSL）对比
 - [docs/research-v2-container.md](./docs/research-v2-container.md) — 自建容器调研 v2
 - [src/cbox/README.md](./src/cbox/README.md) — **cbox：Rust 容器运行时骨架（未实现）**
 - [docs/architecture-v0.md](./docs/architecture-v0.md) — 架构方案 v0（Hyper-V，已弃用）

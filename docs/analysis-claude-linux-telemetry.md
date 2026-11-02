@@ -193,18 +193,19 @@ Electron 这些 API 在 Linux 上最终来自 **glibc locale / `LANG`·`LC_*` / 
    - `{anthropicHost}/api/v2/rum`、`/api/event_logging/**`  
    - 可选：企业策略键 `disableEssentialTelemetry` / `disableNonessentialTelemetry`（代码支持；**正式签名包是否接受本地策略文件 — 待验证**）
 
-2. **环境伪装（WSL 友好）**  
+2. **环境伪装（主路径 · 2026-11-02 和零确认：不改程序）** — 见 [spoofing-timezone-locale.md](./spoofing-timezone-locale.md)  
    - `TZ=<目标 IANA>`（挡住 `Intl`、`CRON_TZ`、子进程 `TZ` 注入）  
    - `LANG` / `LC_ALL` / `LANGUAGE`（挡住 `getPreferredSystemLanguages` / `getLocale`）  
    - 统一 `/etc/localtime` → 目标 zoneinfo；必要时 `ICU_TIMEZONE_FILES_DIR`  
-   - `SENTRY_NAME=<假主机名>`（只盖 Sentry serverName，不盖全部指纹）
+   - 可选 Electron `--lang=`；`SENTRY_NAME=<假主机名>`（只盖 Sentry serverName）
 
 3. **身份隔离**  
    - 独立 userData（每身份一份 `ant-did`）；勿依赖签名版对 `CLAUDE_USER_DATA_DIR` 的尊重（Windows 已知签名包忽略；Linux **待验证**）
 
-4. **JS hook（若环境变量不够）**  
+4. **JS hook / asar 改写（备用 · 仅当环境不够）**  
    - Patch/preload：`Intl.DateTimeFormat.prototype.resolvedOptions`、`Date.prototype.getTimezoneOffset`  
-   - Electron：`app.getPreferredSystemLanguages` / `getLocale` / `getSystemLocale`
+   - Electron：`app.getPreferredSystemLanguages` / `getLocale` / `getSystemLocale`  
+   - 或改 asar 内 `lg()` / `bCt()`（Linux）与 Windows 同角色函数
 
 5. **不必优先**  
    - `claude-native-binding.node`（无遥测/时区符号）  

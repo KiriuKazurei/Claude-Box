@@ -41,6 +41,11 @@
 | 反遥测 | B 略简 | 仍是 Electron |
 | Computer use | 仅 A | Linux 官方无 |
 
+
+## 时区 / 语言伪装策略（2026-11-02）
+
+和零确认：**优先不改 Desktop 程序**，用 `TZ`、`LANG`/`LC_*`、`/etc/localtime`、可选 `--lang` 让 `Intl`/Electron 读假值；**asar patch / API hook 仅备用**。完整约定见 [spoofing-timezone-locale.md](./spoofing-timezone-locale.md)。这是上表「TZ/语言伪装 | B」更易落地的原因，也适用于日后 Windows 容器主路径的 C2 实现顺序。
+
 ## 推荐
 
 - **短期验证**：B · WSL2 + Linux Claude Desktop

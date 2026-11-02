@@ -13,7 +13,8 @@
 │   ├─ cbox-cli / cbox-core / cbox-win（windows-rs）
 │   ├─ 运行：容器用户 + 受限 token + job object
 │   ├─ Net：WFP 规则（容器用户 SID → 只许连网关）
-│   ├─ cbox-hook（C2，cdylib）：环境伪装
+│   ├─ 环境伪装：优先进程/用户环境 TZ·locale（见 spoofing-timezone-locale.md）
+│   ├─ cbox-hook（C2，cdylib）：备用 hook；另担 hostname/MachineGuid 等非 Intl 指纹
 │   └─ ContainerRoot\{profile,app,logs}
 └─ Claude.exe 及全部子进程（运行在容器用户下、job 内）
 ```
@@ -24,7 +25,7 @@
 |---|---|---|
 | **C0 容器 MVP（第一优先）** | 以专用本地用户 `ClaudeBoxUser` + 受限 token 在 job object 中启动 Claude（安装器/解包后的 `Claude.exe`）；数据根在 `ContainerRoot`；进程级代理指向本地网关 | 见下 |
 | C1 网络强制 | WFP 规则：容器用户 SID 只能连 `127.0.0.1:<gateway>`；DNS 方案 | 关网关时 Claude 无法联网；`Test-NetConnection` 以容器用户直连公网失败；JSONL 有全部连接 |
-| C2 环境伪装 | MinHook DLL：hostname / TZ / locale / 卷序列号 / MachineGuid / WMI 常见查询 | 容器内探针读取到的值 = 配置假值 |
+| C2 环境伪装 | **优先**：容器用户环境 / 配置 `identity.timezone`·`locale`（不 patch Claude）；**备用** MinHook/asar：TZ·locale 及 hostname / 卷序列号 / MachineGuid / WMI | 探针与 Desktop `Intl`/locale API 读到配置假值；见 [spoofing-timezone-locale.md](./spoofing-timezone-locale.md) |
 | C3 visible_dirs | 对白名单目录授予容器用户 ACL；拒绝宿主 `C:\Users\<宿主>` 与 `C:\` 根 | 白名单可读写，其它宿主用户文件拒绝访问 |
 | C4 UI | M4 控件改为驱动 Container 而非 VM | 一键启停、查看日志 |
 | 可选 | AppContainer 严格模式（无 Computer use）；Hyper-V/VirtualBox 访客（已弃用） | — |
@@ -48,6 +49,14 @@ C0 验收检查：
 
 - 复用：`config/`、`ClaudeBox.Gateway`（改为监听 loopback）、`ClaudeBox.Control` UI。
 - 弃用（保留代码，不再主线）：`scripts/win11` 的 Hyper-V 建机/交换机脚本、`ClaudeBox.Guest`（访客内脚本）。
+
+## 时区 / 语言伪装（对齐 2026-11-02 决策）
+
+与 WSL 验证路径同一原则（详见 [spoofing-timezone-locale.md](./spoofing-timezone-locale.md)、[compare-desktop-windows-vs-linux-wsl.md](./compare-desktop-windows-vs-linux-wsl.md)）：
+
+1. **主路径**：启动 Claude 前注入假 `TZ` / locale（及 Windows 侧等价区域设置），**不修改** Desktop asar。
+2. **备用**：`cbox-hook` 或 asar 定点改写（`Ph`/`lg`、`LTt`/`bCt` 等），仅当主路径不够。
+3. C2 验收仍要求容器内读到的时区/语言 = 配置假值；实现顺序是「环境先、hook 后」。
 
 ## 实现：Rust `cbox`（Docker 式体验）
 
