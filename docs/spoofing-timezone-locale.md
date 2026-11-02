@@ -14,6 +14,12 @@
 | **主路径（优先）** | **不改程序** | 启动前用进程环境与系统区文件伪装，让 Electron / ICU / `Intl` 自然读到假值 |
 | **备用** | 改 asar 或 hook API | 仅当环境伪装不足以挡住某条钩子（或 Chromium/ICU 仍泄漏）时使用 |
 
+### 作用域（2026-11-02 和零再确认）
+
+- **只在 box / 进程内伪装**（WSL 发行版、自建容器、或 Desktop 启动包装注入的环境）。
+- **宿主 Win11 保持现状**：系统时区继续东八区（UTC+8），显示语言继续简中（`zh-CN`）。不采用「整机改成太平洋标签却假装时钟仍是东八区」或「标识 en-US、UI 仍简中」的整机拆分——系统时区标签与偏移绑死，Electron 读到的语言层也不稳。
+- 近期 **优先在 WSL2 + Linux Claude Desktop 上验证** 本主路径。
+
 网关侧拦 Sentry / Datadog RUM / `event_logging` 仍是独立的反遥测手段，与「值伪装」互补：伪装降低外泄内容；拦截降低外泄通道。
 
 ## 主路径：环境伪装（不改 Desktop）
@@ -54,12 +60,13 @@ Windows 自建容器路径上，同等语义是：容器用户环境下的 **时
 
 | 路径 | 主路径伪装落地 | 备注 |
 |------|----------------|------|
-| **短期验证：WSL2 + Linux Desktop** | `TZ`/`LANG`/`/etc/localtime` 最省事 | 官方不支持「WSL 内装 Linux Desktop」；切断默认 `/mnt/c`；见对比文档 |
-| **主工程后备：自建 Windows 容器** | 容器环境 + `identity.*`；hook 留给非 Intl 指纹及备用 | C2 勿默认「必须 patch Claude asar」 |
+| **优先测试：WSL2 + Linux Desktop** | `TZ`/`LANG`/`/etc/localtime` 最省事；**不改宿主** | 和零 2026-11-02：先测这条；官方不支持「WSL 内装 Linux Desktop」；切断默认 `/mnt/c`；见对比文档 |
+| **主工程后备：自建 Windows 容器** | **仅容器/进程**环境 + `identity.*`；宿主时区/UI 不动；hook 留给非 Intl 指纹及备用 | C2 勿默认「必须 patch Claude asar」 |
 | Hyper-V 访客（已弃用） | 访客系统盘独立 TZ/locale | 仅历史参考 |
 
 ## 明确不做（本决策范围外）
 
 - 不把「改 asar」写成默认交付  
+- **不改宿主 Win11 系统时区 / 显示语言**来伪装（避免时钟与标签绑死、语言层读数不稳）  
 - 不承诺服务端根据 `Timezone:` 提示词字段改模型行为也能被客户端伪装单独消除（需网关/提示词策略另议）  
 - 中国区特殊引号指纹：当前 4.4212.0 客户端静态分析未检出；见 `docs/analysis-china-utc8-quote-fingerprint.md`

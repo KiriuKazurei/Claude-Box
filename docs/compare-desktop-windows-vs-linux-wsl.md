@@ -6,7 +6,7 @@
 
 ## 结论
 
-若暂时放弃 Computer use、仍要 Claude Desktop 原生窗口：在 Win11 家庭版上，**B（WSL2 内装 Linux Claude Desktop）比 A（自建 Windows 容器/沙箱跑 Windows Desktop）更适合当验证路径**——隔离、TZ/LANG、网关、目录可见性都更容易落地。
+若暂时放弃 Computer use、仍要 Claude Desktop 原生窗口：在 Win11 家庭版上，**B（WSL2 内装 Linux Claude Desktop）比 A（自建 Windows 容器/沙箱跑 Windows Desktop）更适合当验证路径**——隔离、TZ/LANG、网关、目录可见性都更容易落地。**和零 2026-11-02：优先测试 B；伪装仅限 WSL/进程内，宿主东八区+简中 UI 不动。**
 
 但官方并不支持「在 WSL 里装 Linux Desktop」；官方 WSL 路径是「装 Windows Desktop，Code 会话进 WSL」。B 的硬风险是 Linux Cowork 依赖 QEMU/KVM（WSL 里要嵌套虚拟化 + `/dev/kvm` + `vhost_vsock`），以及默认 `/mnt/c` 暴露宿主机。
 
@@ -44,13 +44,19 @@
 
 ## 时区 / 语言伪装策略（2026-11-02）
 
-和零确认：**优先不改 Desktop 程序**，用 `TZ`、`LANG`/`LC_*`、`/etc/localtime`、可选 `--lang` 让 `Intl`/Electron 读假值；**asar patch / API hook 仅备用**。完整约定见 [spoofing-timezone-locale.md](./spoofing-timezone-locale.md)。这是上表「TZ/语言伪装 | B」更易落地的原因，也适用于日后 Windows 容器主路径的 C2 实现顺序。
+和零确认：
+
+1. **优先不改 Desktop 程序**，用 `TZ`、`LANG`/`LC_*`、`/etc/localtime`、可选 `--lang` 让 `Intl`/Electron 读假值；**asar patch / API hook 仅备用**。  
+2. **只在 box / 进程（WSL）内伪装**；**宿主 Win11 保持 UTC+8 + 简中 UI**，不改整机时区/显示语言。  
+3. **优先测试路径 = B（WSL2 + Linux Desktop）**。
+
+完整约定见 [spoofing-timezone-locale.md](./spoofing-timezone-locale.md)。这是上表「TZ/语言伪装 | B」更易落地的原因，也适用于日后 Windows 容器主路径的 C2 实现顺序。
 
 ## 推荐
 
-- **短期验证**：B · WSL2 + Linux Claude Desktop
+- **优先测试（已定）**：B · WSL2 + Linux Claude Desktop（宿主时区/语言不动）
 - **主工程后备**：A · 自建 Windows 沙箱 + Windows Desktop（若要 CU，或 B 的 KVM/目录隔离翻车）
-- **不做主推**：仅 Code CLI；以及「Windows Desktop 留宿主机 + WSL Code」（隔离不合格）
+- **不做主推**：仅 Code CLI；以及「Windows Desktop 留宿主机 + WSL Code」（隔离不合格）；以及「改宿主 Win11 时区/语言当伪装」
 
 ### 真机优先核实
 
