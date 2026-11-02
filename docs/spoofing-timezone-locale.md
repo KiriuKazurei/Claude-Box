@@ -60,7 +60,7 @@ Windows 自建容器路径上，同等语义是：容器用户环境下的 **时
 
 | 路径 | 主路径伪装落地 | 备注 |
 |------|----------------|------|
-| **优先测试：WSL2 + Linux Desktop** | `TZ`/`LANG`/`/etc/localtime` 最省事；**不改宿主** | 和零 2026-11-02：先测这条；官方不支持「WSL 内装 Linux Desktop」；切断默认 `/mnt/c`；见对比文档 |
+| **当前主轨：WSL2 + Linux Desktop** | `TZ`/`LANG`/`/etc/localtime` 最省事；**不改宿主** | 见 [architecture-v2-wsl.md](./architecture-v2-wsl.md)；官方不支持「WSL 内装 Linux Desktop」；切断默认 `/mnt/c` |
 | **主工程后备：自建 Windows 容器** | **仅容器/进程**环境 + `identity.*`；宿主时区/UI 不动；hook 留给非 Intl 指纹及备用 | C2 勿默认「必须 patch Claude asar」 |
 | Hyper-V 访客（已弃用） | 访客系统盘独立 TZ/locale | 仅历史参考 |
 

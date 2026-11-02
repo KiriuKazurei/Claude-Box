@@ -1,109 +1,60 @@
 # Claude Box
 
-隔离运行 Claude Desktop 的独立产品（运行时形态可换）。
+隔离运行 Claude Desktop（运行时形态可换）。
 
-**状态：方案 v1 · 主路径改为自建专用容器；第一个里程碑 C0（容器 MVP）**
+**状态（2026-11-02）：主实现轨 = WSL2 + Linux Claude Desktop**（`src/wsl-box/`）  
+工程后备 = 自建 Windows 容器 `cbox`；Hyper-V 方案已归档 Google Drive。
 
-> Hyper-V 访客路径已弃用（Win11 家庭版不支持），见下方文档。
+## 当前怎么走
 
-## 目标
+1. 读 [SCOPE.md](./SCOPE.md)（v0.3）  
+2. 读 [docs/architecture-v2-wsl.md](./docs/architecture-v2-wsl.md)  
+3. 在 Win11 上按 [src/wsl-box/README.md](./src/wsl-box/README.md) 启用 WSL2 → 建 `ClaudeBox` 发行版 → 伪装启动  
 
-在隔离环境里跑 Claude Desktop：项目目录可挂入（默认排除宿主 `C:`），其它宿主机文件默认不可见；出入网经唯一网关（可接 Clash，带本地连接日志）；原生 GUI 透出；访客假环境大幅降低环境遥测穿透。
-
-## 当前主路径（已定）
-
-- **平台**：Windows 11 优先
-- **盒子**：Hyper-V **Windows 访客**（Claude 主进程+子进程均在访客内）
-- **Claude**：Windows Claude（**MSIX**；保留 Computer use）
-- **网络**：Internal vSwitch + 强制唯一网关（HTTP/SOCKS5 → 常接宿主 Clash；中继优先 **gost**）+ **JSONL 连接日志**
-- **挂盘**：`visible_dirs` via **`smb_internal`**；**排除宿主系统盘 C:**；访客自带假系统环境
-- **非主路径**：WSL / Docker / Linux Claude；Sandbox 仅冒烟
+**硬约束**：隔离、唯一网关、目录可见（切断默认 `/mnt/c`）、进程内 TZ/locale 伪装、拦 Sentry/Datadog/`event_logging`。  
+**宿主**：Win11 保持东八区 + 简中；只在 WSL/进程里伪装。  
+**官方风险**：Anthropic 建议 WSL 用户装 Windows Desktop；Linux Desktop-in-WSL **不受支持**。
 
 ## 文档
 
-- [SCOPE.md](./SCOPE.md) — 范围 v0.2
-- [docs/architecture-v1-container.md](./docs/architecture-v1-container.md) — **架构 v1：自建专用容器（主路径，C0–C4）**
-- [docs/spoofing-timezone-locale.md](./docs/spoofing-timezone-locale.md) — **时区/语言伪装：环境优先，asar/hook 备用（2026-11-02）**
-- [docs/compare-desktop-windows-vs-linux-wsl.md](./docs/compare-desktop-windows-vs-linux-wsl.md) — Windows vs Linux Desktop（WSL）对比
-- [docs/research-v2-container.md](./docs/research-v2-container.md) — 自建容器调研 v2
-- [src/cbox/README.md](./src/cbox/README.md) — **cbox：Rust 容器运行时骨架（未实现）**
-- [docs/architecture-v0.md](./docs/architecture-v0.md) — 架构方案 v0（Hyper-V，已弃用）
-- [docs/research-v1-runtime.md](./docs/research-v1-runtime.md) — 隔离运行时选型调研 v1
-- [docs/research-v0.md](./docs/research-v0.md) — 初步技术调研 v0
-- [src/ClaudeBox.Gateway/README.md](./src/ClaudeBox.Gateway/README.md) — M2 网关
-- [src/ClaudeBox.Guest/README.md](./src/ClaudeBox.Guest/README.md) — **M3 访客：假环境 / Claude / 挂载 / 健康检查**
-- [scripts/win11/Set-ClaudeBoxInternalGatewayRouting.md](./scripts/win11/Set-ClaudeBoxInternalGatewayRouting.md) — 访客默认路由说明
+- [SCOPE.md](./SCOPE.md) — 范围 v0.3  
+- [docs/architecture-v2-wsl.md](./docs/architecture-v2-wsl.md) — **架构 v2：WSL 主轨**  
+- [docs/spoofing-timezone-locale.md](./docs/spoofing-timezone-locale.md) — 伪装：环境优先 / asar 备用  
+- [docs/compare-desktop-windows-vs-linux-wsl.md](./docs/compare-desktop-windows-vs-linux-wsl.md)  
+- [docs/analysis-claude-linux-telemetry.md](./docs/analysis-claude-linux-telemetry.md)  
+- [docs/architecture-v1-container.md](./docs/architecture-v1-container.md) — 自建容器（后备）  
+- [docs/architecture-v0.md](./docs/architecture-v0.md) — Hyper-V（已弃用）
 
 ## 仓库骨架
 
 ```
-src/ClaudeBox.Control/   # 宿主机：VM / 挂载 / 网关接线 / Save-Config / ui（WinForms）
-src/ClaudeBox.Gateway/   # 运行时配置、gost 中继计划、JSONL 日志
-src/ClaudeBox.Guest/     # 假环境 Apply、Claude MSIX、访客挂载、健康检查
-config/                  # config.example.yaml + JSON schema
-scripts/win11/           # HV / 网关 / 挂载入口
-tests/                   # 结构与语法检查（可在 Linux pwsh 跑）
+src/wsl-box/             # ★ 当前主轨：host PowerShell + guest bash
+src/cbox/                # 后备：Rust 自建容器骨架
+src/ClaudeBox.Gateway/   # 网关（可复用到 WSL）
+src/ClaudeBox.Control/   # 旧 HV 控件（参考）
+src/ClaudeBox.Guest/     # 旧访客脚本（参考）
+config/                  # 旧 HV/container 配置示例
+docs/
 ```
 
-## 在 Win11 上跑 M3（Claude + 挂载）
-
-> Hyper-V / SMB / Claude 必须在本机 Win11 + 访客内执行；Linux 开发机只做结构检查。**真机联调待验证。**
+## Win11 · WSL 轨（摘要）
 
 ```powershell
 cd path\to\Claude-Box
 Set-ExecutionPolicy -Scope Process Bypass
-Copy-Item .\config\config.example.yaml .\config\config.yaml
-# 编辑 visible_dirs（不要写 C:\）、gateway、identity
+Copy-Item .\src\wsl-box\config\wsl-box.example.yaml .\src\wsl-box\config\wsl-box.yaml
+# 编辑 gateway / identity / visible_dirs（不要挂 C:\）
 
-# M1/M2 若未做：预检 → 交换机 → VM → 网关
-.\scripts\win11\Test-HyperVPrereqs.ps1
-.\scripts\win11\New-ClaudeBoxSwitch.ps1
-.\scripts\win11\New-ClaudeBoxVM.ps1 -IsoPath D:\ISO\Win11.iso
-.\scripts\win11\Start-ClaudeBoxGateway.ps1 -ConfigPath .\config\config.yaml -WriteStartupLog
-
-# M3 挂载计划 + SMB（管理员）
-.\scripts\win11\Mount-ClaudeBoxVisibleDirs.ps1 -ConfigPath .\config\config.yaml -ApplyShares -PublishBundle
-
-# 访客内（Enhanced Session / 已拷入 guest-bundle）：
-#   .\Initialize-ClaudeBoxGuest.ps1 -IdentityHostname claude-box -Timezone UTC -Locale en-US -Workgroup CLAUDEBOX -GatewayIp 192.168.87.1 -Apply
-#   .\Install-ClaudeBoxWindowsClaude.ps1 -ShowGuide
-#   .\Mount-ClaudeBoxGuestShares.ps1 -PlanPath .\mount-plan.json -Apply
-#   .\Test-ClaudeBoxGuestHealth.ps1 -ExpectedHostname claude-box -ExpectedTimezone UTC -ExpectedLocale en-US -ExpectedMountLetters Z:
+# 管理员如需：wsl --install -d Ubuntu-24.04
+.\src\wsl-box\host\New-ClaudeBoxWsl.ps1 -ConfigPath .\src\wsl-box\config\wsl-box.yaml
+.\src\wsl-box\host\Set-ClaudeBoxWslMounts.ps1 -ConfigPath .\src\wsl-box\config\wsl-box.yaml
+.\src\wsl-box\host\Invoke-ClaudeBoxGuest.ps1 -Script install-claude-desktop.sh
+.\src\wsl-box\host\Start-ClaudeBoxWsl.ps1 -ConfigPath .\src\wsl-box\config\wsl-box.yaml
+.\src\wsl-box\host\Invoke-ClaudeBoxGuest.ps1 -Script verify-spoof.sh
 ```
 
-## 在 Win11 上跑 M4（控件 UI）
+## 归档
 
-> PowerShell **WinForms** 最小控件；无独立 .NET 工程。真机 Hyper-V 联调 **待验证**。
+旧 Hyper-V / 容器方案 7z：Google Drive 文件夹 `legacy-hyperv-container-archive`（文件 `Claude-Box-legacy-hyperv-container-20261102.7z`）。
 
-```powershell
-cd path\to\Claude-Box
-Set-ExecutionPolicy -Scope Process Bypass
-Copy-Item .\config\config.example.yaml .\config\config.yaml   # 若尚无
-
-# 图形界面（建议管理员 PowerShell）
-.\scripts\win11\Start-ClaudeBoxControlUi.ps1
-
-# 逻辑自检（Linux / CI 也可用）
-pwsh -File .\src\ClaudeBox.Control\ui\Start-ClaudeBoxControlUi.ps1 -SelfCheck
-```
-
-说明：[src/ClaudeBox.Control/ui/README.md](./src/ClaudeBox.Control/ui/README.md)。
-
-## 在 Win11 上跑 M2（网关）
-
-```powershell
-.\scripts\win11\Start-ClaudeBoxGateway.ps1 -ConfigPath .\config\config.yaml -WriteStartupLog
-.\scripts\win11\Test-ClaudeBoxDirectEgressBlocked.ps1
-```
-
-细节见 [Gateway README](./src/ClaudeBox.Gateway/README.md)。
-
-## 在 Linux 开发机上检查
-
-```bash
-pwsh -File tests/Test-Structure.ps1
-```
-
-## 仓库
-
-https://github.com/KiriuKazurei/Claude-Box
+本地开发机勿 `git push`，除非和零明确要求。

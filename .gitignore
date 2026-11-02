@@ -35,3 +35,7 @@ gost.stdout.log
 gost.stderr.log
 runtime.json
 relay-plan.txt
+
+# WSL box local config
+src/wsl-box/config/wsl-box.yaml
+src/wsl-box/config/*.local.yaml

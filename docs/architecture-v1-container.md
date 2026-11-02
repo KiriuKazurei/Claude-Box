@@ -1,7 +1,7 @@
-# 架构方案 v1 · 自建专用容器（主路径）
+# 架构方案 v1 · 自建专用容器（工程后备）
 
-> 取代 [architecture-v0.md](./architecture-v0.md) 的 Hyper-V 主路径。依据见 [research-v2-container.md](./research-v2-container.md)。
-> Hyper-V 访客路径**降级为可选/已弃用**（Win11 家庭版无 Hyper-V）；M2 网关、配置、M4 控件可复用。
+> **2026-11-02**：当前主实现轨改为 [architecture-v2-wsl.md](./architecture-v2-wsl.md)（WSL2 + Linux Desktop）。本文件保留为工程后备。
+> 原取代 [architecture-v0.md](./architecture-v0.md) Hyper-V；依据见 [research-v2-container.md](./research-v2-container.md)。M2 网关等可复用到 WSL。
 
 ## 组件
 
