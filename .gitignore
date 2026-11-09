@@ -39,3 +39,6 @@ relay-plan.txt
 # WSL box local config
 src/wsl-box/config/wsl-box.yaml
 src/wsl-box/config/*.local.yaml
+
+# Cloud / local dry-run prefix (synced guest + session env)
+.run/

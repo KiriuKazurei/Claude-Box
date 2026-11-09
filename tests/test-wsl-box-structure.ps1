@@ -12,11 +12,17 @@ $need = @(
   'host/Set-ClaudeBoxWslMounts.ps1',
   'host/Start-ClaudeBoxWsl.ps1',
   'host/Invoke-ClaudeBoxGuest.ps1',
+  'host/Watch-ClaudeBoxLocalIp.ps1',
   'guest/apply-spoof.sh',
   'guest/install-claude-desktop.sh',
   'guest/start-claude-desktop.sh',
   'guest/verify-spoof.sh',
-  'guest/gateway-tips.sh'
+  'guest/gateway-tips.sh',
+  'linux/Install-ClaudeBoxFramework.sh',
+  'linux/Run-Smoke.sh',
+  'linux/Install-ClaudeDesktop.sh',
+  'linux/lib/common.sh',
+  'linux/lib/load-config.sh'
 )
 foreach ($r in $need) {
   $p = Join-Path $base $r

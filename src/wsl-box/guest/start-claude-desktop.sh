@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
-# Start Claude Desktop with spoof env already injected by host Start-ClaudeBoxWsl.ps1.
+# Start Claude Desktop with spoof env already injected by host Start-ClaudeBoxWsl.ps1
+# (or cloud linux session.env).
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [[ -n "${CLAUDE_BOX_PREFIX:-}" && -f "${CLAUDE_BOX_PREFIX}/env/session.env" ]]; then
+  # shellcheck disable=SC1090
+  source "${CLAUDE_BOX_PREFIX}/env/session.env"
+fi
 # shellcheck source=/dev/null
 source "$ROOT_DIR/apply-spoof.sh"
 
@@ -16,18 +21,17 @@ echo "[claude-box] proxies: HTTP_PROXY=${HTTP_PROXY:-} HTTPS_PROXY=${HTTPS_PROXY
 echo "[claude-box] starting: $CMD ${EXTRA[*]:-}"
 
 if ! command -v "$CMD" >/dev/null 2>&1; then
-  # Common alternative names after deb install
   for c in claude-desktop claude Claude; do
     if command -v "$c" >/dev/null 2>&1; then CMD="$c"; break; fi
   done
 fi
 
 if ! command -v "$CMD" >/dev/null 2>&1; then
-  echo "error: Desktop binary not found. Run install-claude-desktop.sh first."
+  echo "error: Desktop binary not found. Run install-claude-desktop.sh first"
+  echo "       (cloud: src/wsl-box/linux/Install-ClaudeDesktop.sh — local deb only)."
   exit 127
 fi
 
-# Gateway tips (non-fatal)
 if [[ -z "${HTTP_PROXY:-}${ALL_PROXY:-}" ]]; then
   echo "warn: no HTTP_PROXY/ALL_PROXY — traffic may bypass Claude Box gateway"
 fi

@@ -115,13 +115,29 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 | ID | 交付 | 验收 |
 |----|------|------|
 | **W0** | 文档 + `src/wsl-box` 脚手架 | 本仓库可本地 commit；脚本可在无 WSL 的 CI 上做语法/结构检查 |
+| **W0.5** | **云电脑 Linux dry-run 框架**（`src/wsl-box/linux/`） | 无 Win11/WSL：同步 guest → `.run/claude-box`；`Run-Smoke` 过 apply-spoof / verify / gateway tips；Desktop 仅本地 deb `--check`；见下节 |
 | **W1** | 和零机器：启用 WSL2、导入/创建 `ClaudeBox`、关默认 automount | `ls /mnt/c` 失败或为空；`visible_dirs` 可见 |
 | **W2** | 安装 Linux Desktop + `apply-spoof` + 经网关启动 | 探针：`Intl` timeZone / locale = 假值；流量进网关 JSONL |
 | **W3** | 遥测拦截复盘 | Sentry/Datadog/event_logging 被拦或 culture 已是假值 |
 | **W4** | 可选：asar 备用补丁、Cowork/KVM 可行性记录 | 仅主路径不足时启用补丁 |
 | **W5** | 可选：`kill_on_local_ip_change` 监视器 | 默认关；打开后 IP 变化 → 礼貌关→强杀；见专篇 |
 
+## 云电脑 Linux dry-run（W0.5）
+
+在 Grok Bot / 云电脑等 **纯 Linux** 环境验证 guest 编排（**不**启用用户 Win11 WSL）：
+
+```bash
+bash src/wsl-box/linux/Install-ClaudeBoxFramework.sh
+bash src/wsl-box/linux/Run-Smoke.sh
+bash tests/wsl-box/test-linux-framework.sh
+```
+
+- 前缀：`<repo>/.run/claude-box`（gitignore）；配置驱动 `TZ`/`LANG`/代理/`blocklist`。
+- 宿主 `host/*.ps1` 仍为 Win11 真路径；此处只 dry-run guest。
+- Desktop：`Install-ClaudeDesktop.sh --check` 只认 `installers/linux/*.deb`，不自动下载。
+
 ## 和零机器上的下一步（W1）
+
 
 本回合 **不在用户 PC 上自动启用 WSL**（需明确批准再动机器）。手工步骤：
 
@@ -151,6 +167,7 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 
 - Host：`src/wsl-box/host/`
 - Guest：`src/wsl-box/guest/`
+- **Cloud Linux dry-run**：`src/wsl-box/linux/`（`Install-ClaudeBoxFramework.sh` / `Run-Smoke.sh`）
 - 配置示例：`src/wsl-box/config/wsl-box.example.yaml`
 - README：`src/wsl-box/README.md`
 - 可选 IP 波动杀进程：[kill-on-local-ip-change.md](./kill-on-local-ip-change.md)

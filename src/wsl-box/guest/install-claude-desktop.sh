@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Install Linux Claude Desktop (.deb). Prefer local deb via CLAUDE_BOX_DEB.
+# Cloud/linux framework: does not auto-download; set CLAUDE_BOX_DEB or place under installers/linux/.
 set -euo pipefail
 
 echo "[claude-box] install-claude-desktop"
@@ -30,6 +31,11 @@ No deb provided.
 Set one of:
   CLAUDE_BOX_DEB=/path/to/claude-desktop.deb
   CLAUDE_BOX_DEB_URL=https://.../claude-desktop.deb
+
+Cloud Linux framework (preferred): place the .deb under installers/linux/
+(gitignored) and run:
+  src/wsl-box/linux/Install-ClaudeDesktop.sh
+(or --check to only verify the file exists; that path never auto-downloads).
 
 Official Linux Desktop packages are distributed by Anthropic; place the .deb
 on the host and pass it in, or download inside WSL after authenticating.
