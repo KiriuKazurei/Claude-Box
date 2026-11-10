@@ -2,7 +2,7 @@
 
 > 决策日：2026-11-02（Asia/Tokyo）  
 > 决策者：和零  
-> 取代短期验证优先级：本文件为 **当前主实现轨**；自建 Windows 容器见 [architecture-v1-container.md](./architecture-v1-container.md)（工程后备）；Hyper-V 方案已归档到 Google Drive 7z。  
+> 2026-11-11：和零改为 **两条思路并行**；本文件是 **思路 A（WSL，仍可试）**，不是唯一主路径。不依赖 WSL 的思路 B 见 [architecture-v1-container.md](./architecture-v1-container.md)。Hyper-V 方案已归档到 Google Drive 7z。  
 > 伪装策略：[spoofing-timezone-locale.md](./spoofing-timezone-locale.md)  
 > 能力对比：[compare-desktop-windows-vs-linux-wsl.md](./compare-desktop-windows-vs-linux-wsl.md)
 
@@ -172,8 +172,8 @@ bash tests/wsl-box/test-linux-framework.sh
 
 | 路径 | 状态 |
 |------|------|
-| WSL2 + Linux Desktop（本文件） | **当前主实现轨** |
-| 自建 Windows 容器 `cbox`（v1） | 工程后备；保留 `src/cbox` |
+| WSL2 + Linux Desktop（本文件） | **思路 A**，仍可试；真机启用需和零批准 |
+| 自建 Windows 容器 / 专属目录 `cbox`（v1） | **思路 B**，不依赖 WSL，并行推进；见 [architecture-v1-container.md](./architecture-v1-container.md) |
 | Hyper-V / 旧 Control-Guest | 已弃用；源码留作参考；方案包已上 Google Drive |
 
 ## 代码入口

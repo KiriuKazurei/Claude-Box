@@ -2,8 +2,8 @@
 
 隔离运行 Claude Desktop（运行时形态可换）。
 
-**状态（2026-11-02）：主实现轨 = WSL2 + Linux Claude Desktop**（`src/wsl-box/`）  
-工程后备 = 自建 Windows 容器 `cbox`；Hyper-V 方案已归档 Google Drive。
+**状态（2026-11-11）：两条思路并行。**  
+思路 A = WSL2 + Linux Claude Desktop（`src/wsl-box/`，仍可试）；思路 B = 不依赖 WSL 的 Windows 盒子（`cbox` + 专属目录）。Hyper-V 方案已归档 Google Drive。
 
 ## 当前怎么走
 
