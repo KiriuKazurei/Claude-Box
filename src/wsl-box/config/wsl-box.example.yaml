@@ -64,3 +64,10 @@ spec:
     kill_on_local_ip_change: false
     # kill_grace_seconds: 10
     # watch_interval_seconds: 5
+    # Claude 跳转 OAuth / 授权页时，用独立伴生指纹浏览器打开，不走宿主默认浏览器。
+    # 参考 CCBaga 仅此一条；意图默认开。未接线 / 引擎未就绪时必须拒绝打开，禁止回退宿主浏览器。
+    # 见 docs/companion-fingerprint-browser.md
+    oauth_open_in_fingerprint_browser: true
+    # 盒子内身份保险库（学 CCBaga）；只写发行版 / ClaudeBox 专属目录，尽量不改宿主。
+    # 见 docs/identity-vault.md
+    identity_vault: true

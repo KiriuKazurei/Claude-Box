@@ -25,6 +25,10 @@ need=(
   src/wsl-box/linux/lib/common.sh
   src/wsl-box/linux/lib/load-config.sh
   docs/architecture-v2-wsl.md
+  docs/companion-fingerprint-browser.md
+  docs/identity-vault.md
+  src/wsl-box/companion-browser/open-oauth-url.sh
+  src/wsl-box/identity-vault/README.md
 )
 
 for f in "${need[@]}"; do
@@ -37,6 +41,14 @@ grep -q 'kill_on_local_ip_change:\s*false' src/wsl-box/config/wsl-box.example.ya
   || fail "example yaml must default kill_on_local_ip_change: false"
 pass "kill_on_local_ip_change default false"
 
+grep -q 'oauth_open_in_fingerprint_browser:\s*true' src/wsl-box/config/wsl-box.example.yaml \
+  || fail "example yaml must default oauth_open_in_fingerprint_browser: true"
+pass "oauth_open_in_fingerprint_browser default true"
+
+grep -q 'identity_vault:\s*true' src/wsl-box/config/wsl-box.example.yaml \
+  || fail "example yaml must default identity_vault: true"
+pass "identity_vault default true"
+
 # .run gitignored
 grep -qE '^\.run/?$' .gitignore || fail ".run/ not in .gitignore"
 pass ".run/ gitignored"
@@ -44,8 +56,8 @@ pass ".run/ gitignored"
 # bash -n all scripts
 while IFS= read -r -d '' sh; do
   bash -n "$sh" || fail "bash -n $sh"
-done < <(find src/wsl-box/guest src/wsl-box/linux -name '*.sh' -print0)
-pass "bash -n guest+linux"
+done < <(find src/wsl-box/guest src/wsl-box/linux src/wsl-box/companion-browser -name '*.sh' -print0)
+pass "bash -n guest+linux+companion-browser"
 
 # Config loader smoke
 # shellcheck disable=SC1091

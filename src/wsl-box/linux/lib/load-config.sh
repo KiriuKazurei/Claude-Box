@@ -60,7 +60,7 @@ PY
 # Usage: eval "$(load_config_exports "$cfg")"
 load_config_exports() {
   local cfg="$1"
-  local tz locale language elang host port cmd kill_ip bl_csv
+  local tz locale language elang host port cmd kill_ip oauth_fp vault bl_csv
   tz="$(yaml_scalar "$cfg" timezone America/Los_Angeles)"
   locale="$(yaml_scalar "$cfg" locale en_US.UTF-8)"
   language="$(yaml_scalar "$cfg" language en_US)"
@@ -69,6 +69,8 @@ load_config_exports() {
   port="$(yaml_scalar "$cfg" http_port 3080)"
   cmd="$(yaml_scalar "$cfg" command claude-desktop)"
   kill_ip="$(yaml_scalar "$cfg" kill_on_local_ip_change false)"
+  oauth_fp="$(yaml_scalar "$cfg" oauth_open_in_fingerprint_browser true)"
+  vault="$(yaml_scalar "$cfg" identity_vault true)"
   bl_csv="$(yaml_blocklist "$cfg" | paste -sd, -)"
 
   cat <<EXP
@@ -82,5 +84,7 @@ export CLAUDE_BOX_GATEWAY_HOST=$(printf '%q' "$host")
 export CLAUDE_BOX_GATEWAY_PORT=$(printf '%q' "$port")
 export CLAUDE_BOX_BLOCKLIST=$(printf '%q' "$bl_csv")
 export CLAUDE_BOX_KILL_ON_LOCAL_IP_CHANGE=$(printf '%q' "$kill_ip")
+export CLAUDE_BOX_OAUTH_OPEN_IN_FINGERPRINT_BROWSER=$(printf '%q' "$oauth_fp")
+export CLAUDE_BOX_IDENTITY_VAULT=$(printf '%q' "$vault")
 EXP
 }

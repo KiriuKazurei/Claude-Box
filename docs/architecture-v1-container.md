@@ -30,6 +30,8 @@
 | C4 UI | M4 控件改为驱动 Container 而非 VM | 一键启停、查看日志 |
 | 可选 | AppContainer 严格模式（无 Computer use）；Hyper-V/VirtualBox 访客（已弃用） | — |
 | 可选 | `kill_on_local_ip_change`（默认关）：本机 IP 波动 → 礼貌关再强杀 job 内 Claude；学 claude-switcher；见 [kill-on-local-ip-change.md](./kill-on-local-ip-change.md) | 开关关时不杀；开时 IP diff → 进程退出 |
+| 规划 | OAuth / 授权跳转走伴生指纹浏览器（默认开；不改宿主浏览器默认项作为唯一手段）；见 [companion-fingerprint-browser.md](./companion-fingerprint-browser.md) | 授权页不落入宿主 Chrome/Edge |
+| 规划 | 身份保险库（默认开）：只在容器数据根归档/切换，尽量不改宿主；见 [identity-vault.md](./identity-vault.md) | 切换不改宿主时区语言与默认 Claude 目录 |
 
 ### C0 定义
 

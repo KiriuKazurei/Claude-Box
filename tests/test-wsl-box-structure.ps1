@@ -22,7 +22,9 @@ $need = @(
   'linux/Run-Smoke.sh',
   'linux/Install-ClaudeDesktop.sh',
   'linux/lib/common.sh',
-  'linux/lib/load-config.sh'
+  'linux/lib/load-config.sh',
+  'companion-browser/open-oauth-url.sh',
+  'identity-vault/README.md'
 )
 foreach ($r in $need) {
   $p = Join-Path $base $r

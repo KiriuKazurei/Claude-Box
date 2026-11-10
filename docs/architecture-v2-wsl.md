@@ -33,6 +33,8 @@ Anthropic 文档对 WSL 用户的建议是：**装 Windows Claude Desktop，再�
 | 反遥测 | 网关/hosts/nft 拦 Sentry、Datadog RUM、`/api/event_logging` |
 | Computer use | **已降权**；Linux Desktop 官方无 CU |
 | 可选止血（默认关） | 本机 IP 波动 → 礼貌关再强杀 Claude（学 claude-switcher；见 [kill-on-local-ip-change.md](./kill-on-local-ip-change.md)） |
+| OA 不走宿主浏览器 | Claude 跳转 OAuth / 授权页时，用独立伴生指纹浏览器打开（见 [companion-fingerprint-browser.md](./companion-fingerprint-browser.md)） |
+| 身份保险库（尽量不改宿主） | 盒子内归档/切换 Claude 身份（见 [identity-vault.md](./identity-vault.md)）；不改宿主时区语言或默认 Claude 目录 |
 
 ## 组件布局
 
@@ -51,6 +53,7 @@ Anthropic 文档对 WSL 用户的建议是：**装 Windows Claude Desktop，再�
     ├─ env: TZ / LANG / HTTP_PROXY …
     ├─ guest scripts: install / apply-spoof / start / verify
     └─ Linux Claude Desktop（Electron；无官方 CU）
+        └─ OAuth / 授权跳转 → 伴生指纹浏览器（独立 profile；不走宿主默认浏览器）
 ```
 
 ## 发行版约定
@@ -110,6 +113,14 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 - **不替代** 唯一网关 / 强制代理；只补「出口身份抖了、进程还挂着」的缺口。
 - 专篇与验收：[kill-on-local-ip-change.md](./kill-on-local-ip-change.md)；宿主桩脚本：`src/wsl-box/host/Watch-ClaudeBoxLocalIp.ps1`。
 
+### OAuth（OA）跳转 · 伴生指纹浏览器（规划 · 默认开）
+
+和零决策（2026-11-11）：参考 [CCBaga](https://github.com/liseami/CCBaga)，学 **伴生指纹浏览器** 与 **身份保险库**，并尽可能不改宿主环境。Claude 跳出登录 / 授权页时，用独立 profile 的指纹浏览器打开，避免宿主 Chrome/Edge 侧泄漏；出网仍经唯一网关。配置 `features.oauth_open_in_fingerprint_browser: true`。专篇：[companion-fingerprint-browser.md](./companion-fingerprint-browser.md)；桩：`src/wsl-box/companion-browser/open-oauth-url.sh`。
+
+### 身份保险库（规划 · 默认开 · 尽量不改宿主）
+
+和零补充（同日）：保险库也学。归档 / 切换只发生在发行版或 `%LOCALAPPDATA%\ClaudeBox\` 专属目录，**不**改宿主时区语言，也**不**把宿主日常 Claude 目录当作工作副本。配置 `features.identity_vault: true`。专篇：[identity-vault.md](./identity-vault.md)；桩：`src/wsl-box/identity-vault/`。
+
 ## 里程碑（WSL 轨）
 
 | ID | 交付 | 验收 |
@@ -121,6 +132,8 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 | **W3** | 遥测拦截复盘 | Sentry/Datadog/event_logging 被拦或 culture 已是假值 |
 | **W4** | 可选：asar 备用补丁、Cowork/KVM 可行性记录 | 仅主路径不足时启用补丁 |
 | **W5** | 可选：`kill_on_local_ip_change` 监视器 | 默认关；打开后 IP 变化 → 礼貌关→强杀；见专篇 |
+| **W6** | OA 跳转走伴生指纹浏览器 | 授权 URL 不落入宿主默认浏览器；独立 profile；时区/语言与盒子 identity 一致；流量进网关；引擎未就绪则拒绝打开（不回退宿主浏览器） |
+| **W7** | 盒子内身份保险库 | 归档/切换/回滚只动盒子目录；宿主时区语言与默认 Claude 目录不变；可选与伴生浏览器 profile 绑定 |
 
 ## 云电脑 Linux dry-run（W0.5）
 
@@ -171,3 +184,5 @@ bash tests/wsl-box/test-linux-framework.sh
 - 配置示例：`src/wsl-box/config/wsl-box.example.yaml`
 - README：`src/wsl-box/README.md`
 - 可选 IP 波动杀进程：[kill-on-local-ip-change.md](./kill-on-local-ip-change.md)
+- 伴生指纹浏览器（OA）：[companion-fingerprint-browser.md](./companion-fingerprint-browser.md)；桩 `src/wsl-box/companion-browser/`
+- 身份保险库：[identity-vault.md](./identity-vault.md)；桩 `src/wsl-box/identity-vault/`

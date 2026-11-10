@@ -21,6 +21,8 @@
 - [docs/architecture-v2-wsl.md](./docs/architecture-v2-wsl.md) — **架构 v2：WSL 主轨**  
 - [docs/spoofing-timezone-locale.md](./docs/spoofing-timezone-locale.md) — 伪装：环境优先 / asar 备用  
 - [docs/kill-on-local-ip-change.md](./docs/kill-on-local-ip-change.md) — 可选：本机 IP 波动杀 Claude（默认关）  
+- [docs/companion-fingerprint-browser.md](./docs/companion-fingerprint-browser.md) — OA / 授权跳转走伴生指纹浏览器（默认开；W6）  
+- [docs/identity-vault.md](./docs/identity-vault.md) — 盒子内身份保险库（默认开；尽量不改宿主；W7）  
 - [docs/compare-desktop-windows-vs-linux-wsl.md](./docs/compare-desktop-windows-vs-linux-wsl.md)  
 - [docs/analysis-claude-linux-telemetry.md](./docs/analysis-claude-linux-telemetry.md)  
 - [docs/architecture-v1-container.md](./docs/architecture-v1-container.md) — 自建容器（后备）  

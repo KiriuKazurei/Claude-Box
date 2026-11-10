@@ -52,17 +52,32 @@
    - 配置：`features.kill_on_local_ip_change: false`（默认 OFF）。  
    - 已知有效；不替代唯一网关。详见 [docs/kill-on-local-ip-change.md](./docs/kill-on-local-ip-change.md)。
 
+7. **OAuth（OA）跳转走伴生指纹浏览器**  
+   - Claude 打开登录 / 授权页时，用独立指纹浏览器浏览，**不走宿主默认浏览器**，避免 Cookie、扩展、真机指纹从浏览器侧泄漏。  
+   - 参考 [CCBaga](https://github.com/liseami/CCBaga) 的伴生浏览器；出网仍经唯一网关。  
+   - 配置 `features.oauth_open_in_fingerprint_browser: true`（意图默认开；未接线前不得假装已生效）。  
+   - 详见 [docs/companion-fingerprint-browser.md](./docs/companion-fingerprint-browser.md)。
+
+8. **本地身份保险库（学 CCBaga · 尽量不改宿主）**  
+   - 盒子内归档 / 切换 Claude Desktop（及 Code）本地身份，失败可回滚；登录态随身份走。  
+   - 保险库放在发行版或 `%LOCALAPPDATA%\ClaudeBox\` 专属目录，**不**改宿主时区/语言/默认浏览器，也**不**把宿主日常 Claude 目录当作工作副本。  
+   - 配置 `features.identity_vault: true`（意图默认开；未实现前不得假装已可切换）。  
+   - 详见 [docs/identity-vault.md](./docs/identity-vault.md)。
+
+
 ## 控件（MVP · WSL 轨）
 
 - 配置网关、上游（含 Clash）、连接日志
 - 选择可见目录（拒绝默认挂宿主 `C:`）
 - 启停 WSL 发行版内 Desktop（WSLg 窗口）
 - 可选开关：本机 IP 波动时杀 Claude（默认关；见上）
+- OA / 授权页用伴生指纹浏览器打开（默认开；见上；W6 接线）
+- 盒子内身份保险库：归档 / 切换（默认开；见上；W7 接线）
 
 ## 暂不进 MVP
 
 - Computer use 一等支持
-- 多账号一键切换
+- 改写宿主默认 Claude 目录 / 宿主凭据库作为保险库工作副本（身份切换只在盒子内做）
 - Linux 宿主机一等支持
 - Web 远程桌面
 - 默认 TLS 解密遥测正文

@@ -51,3 +51,11 @@ Anthropic：WSL 用户应装 Windows Desktop。本轨为不受支持的验证/�
 ## 可选：本机 IP 波动杀进程（默认关）
 
 配置 `features.kill_on_local_ip_change: false`。打开后由宿主 `host/Watch-ClaudeBoxLocalIp.ps1` 监视本机 IP；变化则对发行版内 Claude **先礼貌关再强杀**（学 claude-switcher）。专篇：[docs/kill-on-local-ip-change.md](../../docs/kill-on-local-ip-change.md)。
+
+## OAuth（OA）跳转：伴生指纹浏览器（默认开 · W6 接线）
+
+配置 `features.oauth_open_in_fingerprint_browser: true`。Claude 打开登录 / 授权页时，用独立指纹浏览器浏览，**不走宿主默认浏览器**。不改宿主时区语言。专篇：[docs/companion-fingerprint-browser.md](../../docs/companion-fingerprint-browser.md)；桩：`companion-browser/open-oauth-url.sh`。
+
+## 身份保险库（默认开 · 尽量不改宿主 · W7 接线）
+
+配置 `features.identity_vault: true`。在盒子专属目录归档 / 切换 Claude 本地身份，**不**改写宿主默认 Claude 目录或宿主时区语言。专篇：[docs/identity-vault.md](../../docs/identity-vault.md)；桩：`identity-vault/`。

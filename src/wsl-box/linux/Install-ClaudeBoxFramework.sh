@@ -73,6 +73,8 @@ config=$CFG
 guest_scripts=$(ls -1 "$GUEST_DST" | tr '\n' ' ')
 generated=$(date -Iseconds)
 kill_on_local_ip_change=$(yaml_scalar "$CFG" kill_on_local_ip_change false)
+oauth_open_in_fingerprint_browser=$(yaml_scalar "$CFG" oauth_open_in_fingerprint_browser true)
+identity_vault=$(yaml_scalar "$CFG" identity_vault true)
 MAN
 
 claude_box_log "synced guest → $GUEST_DST"

@@ -24,6 +24,8 @@ source "$ENV_FILE"
 claude_box_log "smoke start prefix=$PREFIX"
 claude_box_log "TZ=$TZ LANG=$LANG gateway=${CLAUDE_BOX_GATEWAY_HOST:-}:$CLAUDE_BOX_GATEWAY_PORT"
 claude_box_log "features.kill_on_local_ip_change=${CLAUDE_BOX_KILL_ON_LOCAL_IP_CHANGE:-false}"
+claude_box_log "features.oauth_open_in_fingerprint_browser=${CLAUDE_BOX_OAUTH_OPEN_IN_FINGERPRINT_BROWSER:-true}"
+claude_box_log "features.identity_vault=${CLAUDE_BOX_IDENTITY_VAULT:-true}"
 
 # 1) apply-spoof (session-level; /etc only if root)
 bash "$GUEST/apply-spoof.sh"
@@ -64,5 +66,25 @@ case "${CLAUDE_BOX_KILL_ON_LOCAL_IP_CHANGE:-false}" in
   false|False|FALSE|0|no|No|off|Off) ;;
   *) claude_box_die "kill_on_local_ip_change must default false (got ${CLAUDE_BOX_KILL_ON_LOCAL_IP_CHANGE})" ;;
 esac
+
+# 7) intended-on flags must default true in loaded example config
+case "${CLAUDE_BOX_OAUTH_OPEN_IN_FINGERPRINT_BROWSER:-true}" in
+  true|True|TRUE|1|yes|Yes|on|On) ;;
+  *) claude_box_die "oauth_open_in_fingerprint_browser must default true (got ${CLAUDE_BOX_OAUTH_OPEN_IN_FINGERPRINT_BROWSER})" ;;
+esac
+case "${CLAUDE_BOX_IDENTITY_VAULT:-true}" in
+  true|True|TRUE|1|yes|Yes|on|On) ;;
+  *) claude_box_die "identity_vault must default true (got ${CLAUDE_BOX_IDENTITY_VAULT})" ;;
+esac
+
+# 8) OA opener stub must refuse host-browser fallback when engine is missing
+stub="$(claude_box_repo_root)/src/wsl-box/companion-browser/open-oauth-url.sh"
+if [[ -x "$stub" ]]; then
+  if CLAUDE_BOX_COMPANION_BROWSER= bash "$stub" "https://claude.ai/login" >/dev/null 2>"$PREFIX/oauth-stub.err"; then
+    claude_box_die "open-oauth-url.sh must fail when companion engine is unset"
+  fi
+  grep -q "Refusing to open the host default browser" "$PREFIX/oauth-stub.err"     || claude_box_die "open-oauth-url.sh must refuse host default browser"
+  claude_box_log "companion OA stub refuses host fallback"
+fi
 
 claude_box_log "SMOKE OK"
