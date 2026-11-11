@@ -1,4 +1,4 @@
-# Claude Box · 范围 v0.3.1（两条思路并行）
+# Claude Box · 范围 v0.3.2（主方案：纯 WSL）
 
 ## 一句话
 
@@ -15,21 +15,21 @@
 - 硬约束：隔离跑 Claude、唯一网关、目录可见性、环境伪装与反遥测。
 - Computer use **已降权**（Linux Desktop 官方无 CU）。
 
-### 现阶段两条思路（2026-11-11 · v0.3.1）
+### 现阶段主方案（2026-11-11 · v0.3.2）
 
-和零：先分成两条思路并行；**WSL 思路仍可试**，暂不把其中一条定为唯一主路径。共用硬约束（隔离、唯一网关、目录可见、盒子内伪装、OA 走伴生指纹浏览器、保险库尽量不改宿主）。
+和零选定：**纯 WSL2 + 可见目录** 作为 Claude Box 的主方案（不装 Docker Desktop）。目标是完整隔离：专用发行版跑 Linux Claude Desktop、唯一网关、只开放指定目录、盒子/进程内时区语言伪装、OA 走伴生指纹浏览器、保险库尽量不改宿主。不做「伪装成非虚拟机以绕开检测」。
 
-**思路 A · WSL2 + Linux Claude Desktop**（可试）
+**主方案 · WSL2 + Linux Claude Desktop**
 
 - 专用发行版（如 `ClaudeBox`）；宿主 Win11 保持东八区 + 简中，只在发行版 / 进程内伪装。
 - 切断默认 `/mnt/c`，只挂 `visible_dirs`；网关拦 Sentry / Datadog RUM / `event_logging`。
 - **官方风险**：Anthropic 建议 WSL 用户装 **Windows** Desktop；本路径不受官方支持。见 [docs/architecture-v2-wsl.md](./docs/architecture-v2-wsl.md)。
-- 代码：`src/wsl-box/`。真机启用 WSL 仍需和零明确批准。
+- 代码：`src/wsl-box/`。真机启用 WSL 仍需和零明确批准；当前只在云电脑推进方案与框架。
 
-**思路 B · 不依赖 WSL**（并行）
+**后备 · 主方案效果不好再换**
 
-- 在 Win11 上用自建专用容器 / 专属目录跑 **Windows Claude Desktop**（`cbox`：专用用户 + job + WFP + 进程环境伪装），同样走唯一网关、伴生指纹浏览器、盒子内身份保险库。
-- 尽量不改宿主时区、语言、默认浏览器与日常 Claude 目录。见 [docs/architecture-v1-container.md](./docs/architecture-v1-container.md)、`src/cbox/`。
+- **WHPX + QEMU** 跑 Debian/Ubuntu 客机，再装 Linux Desktop（家庭版可用，不依赖完整 Hyper-V / WSL / Docker）。隔离更硬，磁盘约需预留 20 GB 量级。对照见 [docs/research-claude-cage.md](./docs/research-claude-cage.md)。
+- **不依赖 WSL 的 Windows 盒子**（`cbox` + 专属目录跑 Windows Desktop）：见 [docs/architecture-v1-container.md](./docs/architecture-v1-container.md)、`src/cbox/`。暂不并列开发。
 
 ### 已归档 / 弃用
 

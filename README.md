@@ -2,12 +2,12 @@
 
 隔离运行 Claude Desktop（运行时形态可换）。
 
-**状态（2026-11-11）：两条思路并行。**  
-思路 A = WSL2 + Linux Claude Desktop（`src/wsl-box/`，仍可试）；思路 B = 不依赖 WSL 的 Windows 盒子（`cbox` + 专属目录）。Hyper-V 方案已归档 Google Drive。
+**状态（2026-11-11）：主方案是纯 WSL2。**  
+在专用发行版里跑 Linux Claude Desktop（`src/wsl-box/`），只挂 `visible_dirs`。效果不好再考虑 WHPX+QEMU 或 `cbox`。Hyper-V 方案已归档 Google Drive。
 
 ## 当前怎么走
 
-1. 读 [SCOPE.md](./SCOPE.md)（v0.3）  
+1. 读 [SCOPE.md](./SCOPE.md)（v0.3.2）  
 2. 读 [docs/architecture-v2-wsl.md](./docs/architecture-v2-wsl.md)  
 3. 在 Win11 上按 [src/wsl-box/README.md](./src/wsl-box/README.md) 启用 WSL2 → 建 `ClaudeBox` 发行版 → 伪装启动  
 
@@ -17,8 +17,8 @@
 
 ## 文档
 
-- [SCOPE.md](./SCOPE.md) — 范围 v0.3  
-- [docs/architecture-v2-wsl.md](./docs/architecture-v2-wsl.md) — **架构 v2：WSL 主轨**  
+- [SCOPE.md](./SCOPE.md) — 范围 v0.3.2  
+- [docs/architecture-v2-wsl.md](./docs/architecture-v2-wsl.md) — **架构 v2：主方案 WSL**  
 - [docs/spoofing-timezone-locale.md](./docs/spoofing-timezone-locale.md) — 伪装：环境优先 / asar 备用  
 - [docs/kill-on-local-ip-change.md](./docs/kill-on-local-ip-change.md) — 可选：本机 IP 波动杀 Claude（默认关）  
 - [docs/companion-fingerprint-browser.md](./docs/companion-fingerprint-browser.md) — OA / 授权跳转走伴生指纹浏览器（默认开；W6）  
@@ -26,7 +26,7 @@
 - [docs/research-claude-cage.md](./docs/research-claude-cage.md) — 调研：Claude Cage 的低成本固定化环境  
 - [docs/compare-desktop-windows-vs-linux-wsl.md](./docs/compare-desktop-windows-vs-linux-wsl.md)  
 - [docs/analysis-claude-linux-telemetry.md](./docs/analysis-claude-linux-telemetry.md)  
-- [docs/architecture-v1-container.md](./docs/architecture-v1-container.md) — 自建容器（后备）  
+- [docs/architecture-v1-container.md](./docs/architecture-v1-container.md) — 自建容器（后备，暂不并列）  
 - [docs/architecture-v0.md](./docs/architecture-v0.md) — Hyper-V（已弃用）
 
 ## 仓库骨架

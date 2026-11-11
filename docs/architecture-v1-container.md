@@ -1,7 +1,7 @@
-# 架构方案 v1 · 自建专用容器（思路 B · 不依赖 WSL）
+# 架构方案 v1 · 自建专用容器（后备 · 不依赖 WSL）
 
-> **2026-11-11**：和零改为两条思路并行。本文件是 **思路 B**（不依赖 WSL 的 Windows 盒子）；[architecture-v2-wsl.md](./architecture-v2-wsl.md) 是 **思路 A**（WSL，仍可试）。两条共用网关、伴生指纹浏览器与盒子内身份保险库，并尽量不改宿主。
-> 原取代 [architecture-v0.md](./architecture-v0.md) Hyper-V；依据见 [research-v2-container.md](./research-v2-container.md)。M2 网关等两边都可复用。
+> **2026-11-11**：主方案改为纯 WSL，见 [architecture-v2-wsl.md](./architecture-v2-wsl.md)。本文件是 **不依赖 WSL 的后备**（Windows 盒子 / `cbox`），暂不并列开发。仍共用网关、伴生指纹浏览器与盒子内身份保险库，并尽量不改宿主。
+> 原取代 [architecture-v0.md](./architecture-v0.md) Hyper-V；依据见 [research-v2-container.md](./research-v2-container.md)。M2 网关等可复用。
 
 ## 组件
 
