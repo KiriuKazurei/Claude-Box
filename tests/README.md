@@ -27,3 +27,8 @@ bash src/wsl-box/linux/Run-Smoke.sh
 bash tests/claudebox/test-p1-gate.sh
 ```
 
+`claudebox/test-p1-p2-gate.sh` — P1+P2 完整门禁：策略引擎与采集器测试，再跑 collect → apply → verify。原始清单可含编码，默认策略下展示层只有厂商/型号。
+
+```bash
+bash tests/claudebox/test-p1-p2-gate.sh
+```

@@ -1,4 +1,5 @@
 #include "claudebox/identity.hpp"
+#include "claudebox/collect.hpp"
 
 #include <iostream>
 #include <string>
@@ -12,6 +13,10 @@ using claudebox::identity::load_inventory_file;
 using claudebox::identity::verify;
 using claudebox::identity::verify_prefix;
 using claudebox::identity::write_presentation;
+using claudebox::identity::collect_from_tree;
+using claudebox::identity::collect_from_inventory_file;
+using claudebox::identity::write_raw_inventory;
+using claudebox::identity::raw_inventory_path;
 
 namespace {
 
@@ -20,12 +25,14 @@ struct Options {
     std::filesystem::path inventory;
     std::filesystem::path policy;
     std::filesystem::path prefix;
+    std::filesystem::path source_root;
 };
 
 void usage(std::ostream& out) {
     out << "usage:\n"
         << "  claudebox-identity apply --inventory FILE [--policy FILE] --prefix DIR\n"
         << "  claudebox-identity verify --inventory FILE [--policy FILE] --prefix DIR\n"
+        << "  claudebox-identity collect (--source-root DIR | --inventory FILE) --prefix DIR\n"
         << "  claudebox-identity print-defaults\n";
 }
 
@@ -49,6 +56,8 @@ Options parse_args(int argc, char** argv) {
             opt.policy = need("--policy");
         } else if (arg == "--prefix") {
             opt.prefix = need("--prefix");
+        } else if (arg == "--source-root") {
+            opt.source_root = need("--source-root");
         } else if (arg == "-h" || arg == "--help") {
             opt.command = "help";
         } else {
@@ -81,6 +90,29 @@ int main(int argc, char** argv) {
                 std::cout << "  " << id << ":\n    mode: "
                           << claudebox::identity::field_mode_name(fp.mode) << "\n";
             }
+            return 0;
+        }
+        if (opt.command == "collect") {
+            if (opt.prefix.empty() || (opt.source_root.empty() && opt.inventory.empty())) {
+                std::cerr << "error: collect requires --prefix and --source-root or --inventory\n";
+                usage(std::cerr);
+                return 2;
+            }
+            if (!opt.source_root.empty() && !opt.inventory.empty()) {
+                std::cerr << "error: use only one of --source-root or --inventory\n";
+                return 2;
+            }
+            const auto collected = !opt.source_root.empty()
+                                       ? collect_from_tree(opt.source_root)
+                                       : collect_from_inventory_file(opt.inventory);
+            if (!collected.ok) {
+                std::cerr << "error: " << collected.error << "\n";
+                return 1;
+            }
+            const auto out = raw_inventory_path(opt.prefix);
+            write_raw_inventory(out, collected.inventory);
+            std::cout << "ok collect (" << collected.inventory.size() << " field(s)) -> " << out
+                      << "\n";
             return 0;
         }
         if (opt.command != "apply" && opt.command != "verify") {

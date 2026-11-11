@@ -27,3 +27,15 @@ bash tests/claudebox/test-p1-gate.sh
 ```
 
 `--policy` 省略时使用默认策略。不要把真实编码提交进 git。
+
+## 采集（P2）
+
+```bash
+./src/claudebox/build/claudebox-identity collect \
+  --source-root tests/claudebox/fixtures/host-sys \
+  --prefix /tmp/claude-box-p2
+# 原始清单：/tmp/claude-box-p2/var/host-inventory.raw.yaml
+# 不会自动生成展示层。随后可用同一 prefix 做 apply / verify。
+
+bash tests/claudebox/test-p1-p2-gate.sh
+```

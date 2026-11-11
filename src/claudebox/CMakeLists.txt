@@ -7,6 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(claudebox_identity
     src/identity.cpp
+    src/collect.cpp
 )
 target_include_directories(claudebox_identity PUBLIC include)
 target_compile_options(claudebox_identity PRIVATE -Wall -Wextra -Wpedantic -Werror)
@@ -23,3 +24,11 @@ target_compile_definitions(test_identity PRIVATE
 
 enable_testing()
 add_test(NAME identity_engine COMMAND test_identity)
+
+add_executable(test_collect tests/test_collect.cpp)
+target_link_libraries(test_collect PRIVATE claudebox_identity)
+target_compile_options(test_collect PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_compile_definitions(test_collect PRIVATE
+    CLAUDEBOX_SYS_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../tests/claudebox/fixtures/host-sys"
+    CLAUDEBOX_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../tests/wsl-box/fixtures")
+add_test(NAME identity_collect COMMAND test_collect)
