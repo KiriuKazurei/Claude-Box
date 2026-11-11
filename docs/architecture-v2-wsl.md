@@ -169,7 +169,7 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 
 `guest/apply-host-identity.sh` 会丢弃清单里的禁止字段，并拒绝把看起来像 UUID / MAC 的值当作型号发布。`guest/verify-host-identity.sh` 在型号可见、禁止值出现在展示层或 advertised env、或夹具序列号泄漏时失败。既有 TZ / locale 探针仍须通过。
 
-真机 WSL 若以后要做 DMI overlay，也必须遵守同一合同：只发布型号，不发布编码；仍不改写「隐藏 WSL」为目标。
+真机 WSL 若以后要做 DMI overlay，也必须遵守同一合同：只发布型号，不发布编码；仍不以「隐藏 WSL」为目标。
 
 ### 尚未完成
 
@@ -199,6 +199,7 @@ bash tests/wsl-box/test-linux-framework.sh   # 含 test-host-identity.sh
 1. **管理员 PowerShell**：`wsl --install -d Ubuntu-24.04`（或先 `wsl --status` 看是否已装）→ 重启如提示。
 2. 克隆/同步本仓库到 Win11。
 3. 复制 `src/wsl-box/config/wsl-box.example.yaml` → 本地 config；改 `identity` / `gateway` / `visible_dirs`。
+   厂商/型号可用 `host/Export-ClaudeBoxHostIdentity.ps1` 写入（只读 Manufacturer 与 Model，不导出序列号等编码）。
 4. 运行：
    ```powershell
    cd path\to\Claude-Box
