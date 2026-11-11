@@ -46,3 +46,8 @@ src/wsl-box/config/*.local.yaml
 # Python bytecode
 __pycache__/
 *.py[cod]
+
+# C++ / CMake build trees
+**/build/
+cmake-build-*/
+CMakeUserPresets.json

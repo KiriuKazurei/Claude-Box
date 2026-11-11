@@ -20,3 +20,10 @@ pwsh -File tests/test-wsl-box-structure.ps1
 bash tests/wsl-box/test-linux-framework.sh
 # 或直接：
 bash src/wsl-box/linux/Run-Smoke.sh
+
+`claudebox/test-p1-gate.sh` — P1 身份策略引擎门禁：编译 C++ 库、跑夹具测试，并用默认策略 apply/verify。默认厂商/型号可展示，硬件编码不得进入展示层。
+
+```bash
+bash tests/claudebox/test-p1-gate.sh
+```
+
