@@ -1,4 +1,4 @@
-# Claude Box · 范围 v0.3.3（主方案：纯 WSL）
+# Claude Box · 范围 v0.4.0（主方案：纯 WSL）
 
 ## 一句话
 
@@ -15,7 +15,7 @@
 - 硬约束：隔离跑 Claude、唯一网关、目录可见性、环境伪装与反遥测。
 - Computer use **已降权**（Linux Desktop 官方无 CU）。
 
-### 现阶段主方案（2026-11-11 · v0.3.3）
+### 现阶段主方案（2026-11-11 · v0.4.0）
 
 和零选定：**纯 WSL2 + 可见目录** 作为 Claude Box 的主方案（不装 Docker Desktop）。目标是完整隔离：专用发行版跑 Linux Claude Desktop、唯一网关、只开放指定目录、盒子/进程内时区语言伪装、OA 走伴生指纹浏览器、保险库尽量不改宿主。不做「伪装成非虚拟机以绕开检测」。
 
@@ -24,7 +24,7 @@
 - 专用发行版（如 `ClaudeBox`）；宿主 Win11 保持东八区 + 简中，只在发行版 / 进程内伪装。
 - 切断默认 `/mnt/c`，只挂 `visible_dirs`；网关拦 Sentry / Datadog RUM / `event_logging`。
 - **官方风险**：Anthropic 建议 WSL 用户装 **Windows** Desktop；本路径不受官方支持。见 [docs/architecture-v2-wsl.md](./docs/architecture-v2-wsl.md)。
-- 代码：`src/wsl-box/`。真机启用 WSL 仍需和零明确批准；当前只在云电脑推进方案与框架。
+- 代码：现有框架在 `src/wsl-box/`；C++/Qt 主控件按 [docs/framework-build-plan.md](./docs/framework-build-plan.md) 在云电脑推进到接近 beta。真机启用 WSL 仍需和零明确批准。
 
 **后备 · 主方案效果不好再换**
 
@@ -40,8 +40,8 @@
 
 1. **文件系统**：默认可见目录；排除宿主系统盘整挂；WSL 关 automount。
 2. **身份伪装**：发行版/容器独立假环境（非改宿主）。
-   - **机型可真、编码必须假或不可见**：可向 Desktop 提供宿主真实的厂商 / 电脑型号（如制造商与 Product Name）。**不得**暴露硬件编码或唯一设备标识，包括但不限于序列号、主板/机箱 UUID、MAC 地址、磁盘序列号、CPU 处理器 ID、Windows MachineGuid、设备实例路径。
-   - **时区 / 语言仍只在盒子内伪装**，不跟宿主、也不因「给真实机型」而放行走样。
+   - **身份展示由用户按字段授权**（2026-11-11 · v0.4.0）：部署后采集电脑有关信息，在设置页列出。用户选择哪些原样提供给 Claude、哪些隐藏、哪些修改后再展示。默认：厂商 / 型号可原样展示；序列号、UUID、MAC、磁盘序列号、CPU ID、MachineGuid、设备实例路径等硬件编码默认隐藏。详见 [docs/identity-presentation.md](./docs/identity-presentation.md)。
+   - **时区 / 语言仍只在盒子内伪装**，不跟宿主；设置页展示的是盒子伪装值，不把宿主真实时区作为默认可展示字段。
 3. **网络**：唯一网关 + 可选 JSONL 复盘。
 4. **重点**：降低 Claude 对真宿主机环境的遥测穿透。
 5. **时区 / 系统语言伪装**  
@@ -70,12 +70,16 @@
 
 ## 控件（MVP · WSL 轨）
 
+- 主控件：**C++20 + Qt 6**（见 [docs/framework-build-plan.md](./docs/framework-build-plan.md)）
+- 身份清单设置页：列出采集结果；按字段选择原样展示 / 隐藏 / 修改后展示（见上）
 - 配置网关、上游（含 Clash）、连接日志
 - 选择可见目录（拒绝默认挂宿主 `C:`）
 - 启停 WSL 发行版内 Desktop（WSLg 窗口）
 - 可选开关：本机 IP 波动时杀 Claude（默认关；见上）
 - OA / 授权页用伴生指纹浏览器打开（默认开；见上；W6 接线）
 - 盒子内身份保险库：归档 / 切换（默认开；见上；W7 接线）
+
+开发顺序：先在云电脑把架构与代码做到接近 beta，再放到真机；真机启用 WSL 仍须和零明确批准。
 
 ## 暂不进 MVP
 

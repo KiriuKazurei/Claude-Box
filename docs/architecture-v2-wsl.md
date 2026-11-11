@@ -3,6 +3,7 @@
 > 决策日：2026-11-02（Asia/Tokyo）  
 > 决策者：和零  
 > 2026-11-11：和零选定 **纯 WSL2 为主方案**（本文件）。效果不好再换 WHPX+QEMU 或 [architecture-v1-container.md](./architecture-v1-container.md) 的 `cbox`。Hyper-V 方案已归档到 Google Drive 7z。  
+> 同日补充：身份展示改为设置页按字段授权；框架在云电脑做到接近 beta 再上真机。计划见 [framework-build-plan.md](./framework-build-plan.md)，口径见 [identity-presentation.md](./identity-presentation.md)。控件主栈为 C++20 + Qt 6。  
 > 伪装策略：[spoofing-timezone-locale.md](./spoofing-timezone-locale.md)  
 > 能力对比：[compare-desktop-windows-vs-linux-wsl.md](./compare-desktop-windows-vs-linux-wsl.md)
 
@@ -30,7 +31,7 @@ Anthropic 文档对 WSL 用户的建议是：**装 Windows Claude Desktop，再�
 | 唯一网关出网 | 宿主 gost/Clash；发行版内 `HTTP(S)_PROXY`/`ALL_PROXY` + 可选 nftables 强制 |
 | 目录可见性 | **切断默认 `/mnt/c`**；只 bind-mount `visible_dirs` |
 | 环境伪装 | `TZ`、`LANG`/`LC_*`、`/etc/localtime`、可选 `--lang`（不改宿主） |
-| 机型可真、编码不可见 | 可从宿主注入真实厂商 / 产品型号供 Desktop 读取；**禁止**传入或泄漏序列号、主板/机箱 UUID、MAC、磁盘序列号、CPU ID、MachineGuid 等硬件编码 |
+| 身份展示按字段授权 | 部署后采集电脑信息，设置页决定原样展示 / 隐藏 / 修改后展示；默认厂商与型号可原样展示，硬件编码默认隐藏。见 [identity-presentation.md](./identity-presentation.md) |
 | 反遥测 | 网关/hosts/nft 拦 Sentry、Datadog RUM、`/api/event_logging` |
 | Computer use | **已降权**；Linux Desktop 官方无 CU |
 | 可选止血（默认关） | 本机 IP 波动 → 礼貌关再强杀 Claude（学 claude-switcher；见 [kill-on-local-ip-change.md](./kill-on-local-ip-change.md)） |
@@ -83,7 +84,7 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 1. `ln -sfn /usr/share/zoneinfo/$TZ /etc/localtime`（需一次特权或镜像预置）
 2. 写入 `/etc/default/locale` 或 session env（与配置一致）
 3. 可选：Desktop 启动追加 `--lang=en-US`
-4. 将允许的厂商 / 型号写入展示层（见下节）；**不**写入硬件编码
+4. 按用户策略将字段写入展示层（见下节）；默认写入厂商 / 型号，硬件编码默认不写入
 5. **备用**（默认关）：asar 定点改写 `lg()` / `bCt()`（见 spoofing 文档）
 
 ## 挂载策略
@@ -123,6 +124,10 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 
 和零补充（同日）：保险库也学。归档 / 切换只发生在发行版或 `%LOCALAPPDATA%\ClaudeBox\` 专属目录，**不**改宿主时区语言，也**不**把宿主日常 Claude 目录当作工作副本。配置 `features.identity_vault: true`。专篇：[identity-vault.md](./identity-vault.md)；桩：`src/wsl-box/identity-vault/`。
 
+## 框架搭建模块
+
+在云电脑按 [framework-build-plan.md](./framework-build-plan.md) 从 P0 做到 P11（接近 beta），再考虑真机 W1。控件主栈为 C++20 + Qt 6。
+
 ## 里程碑（WSL 轨）
 
 | ID | 交付 | 验收 |
@@ -137,24 +142,33 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 | **W6** | OA 跳转走伴生指纹浏览器 | 授权 URL 不落入宿主默认浏览器；独立 profile；时区/语言与盒子 identity 一致；流量进网关；引擎未就绪则拒绝打开（不回退宿主浏览器） |
 | **W7** | 盒子内身份保险库 | 归档/切换/回滚只动盒子目录；宿主时区语言与默认 Claude 目录不变；可选与伴生浏览器 profile 绑定 |
 
-## 机型注入与硬件编码屏蔽
+## 身份展示（采集 + 设置页按字段授权）
 
-和零（2026-11-11 · SCOPE v0.3.3）：Desktop **可以**看到宿主真实的厂商与产品型号；**不得**看到序列号、主板/机箱 UUID、MAC、磁盘序列号、CPU 处理器 ID、Windows MachineGuid、设备实例路径等硬件编码。时区 / 语言伪装不因此放宽。
+和零（2026-11-11 · SCOPE v0.4.0）：Claude Box 部署后采集电脑有关信息，在设置页列出。用户选择哪些原样提供给 Claude、哪些隐藏、哪些修改后再展示。默认：厂商 / 型号可原样展示；序列号、主板/机箱 UUID、MAC、磁盘序列号、CPU ID、MachineGuid、设备实例路径等硬件编码默认隐藏。时区 / 语言仍只在盒子内伪装，不把宿主真实时区作为默认可展示字段。专篇：[identity-presentation.md](./identity-presentation.md)。
 
 这不是「把环境装成普通真机」或隐藏 WSL。内核名 `microsoft-standard-WSL2`、virtio、hypervisor 标志等痕迹会继续存在，本方案不把它们当成要修掉的缺陷。
 
-### 配置
+### 配置（过渡期与目标）
 
 `spec.host_identity`（见 `src/wsl-box/config/wsl-box.example.yaml`）：
 
+**现行实现（P1 接上之前仍有效）**
+
 - `expose_real_model: true`：允许发布厂商 / 型号
 - `manufacturer` / `product`：可选预填；真机上通常由导出脚本写入，不必把真实型号提交进仓库
-- `hide_identifiers: true`：**硬约束**。设为 false 时 apply / verify 必须失败
-- `hidden_identifier_keys`：文档 + 校验清单（serial、UUID、MAC、disk_serial、cpu_id、machine_guid、device_instance_path 等）。代码里还有一份内置黑名单，配置删掉某项也不会放开
+- `hide_identifiers: true`：当前仍是硬开关。设为 false 时 apply / verify 必须失败
+- `hidden_identifier_keys`：文档 + 校验清单（serial、UUID、MAC、disk_serial、cpu_id、machine_guid、device_instance_path 等）
 
-### 真机（尚未做）
+**目标形态（P1–P4）**
 
-`src/wsl-box/host/Export-ClaudeBoxHostIdentity.ps1` **只**读取 `Win32_ComputerSystem` 的 `Manufacturer` 与 `Model`，写成 guest 侧允许清单。不查询 `Win32_BIOS` 序列号、`Win32_ComputerSystemProduct` UUID、网卡 MAC、磁盘序列号、`Win32_Processor.ProcessorId`、或 `MachineGuid` 注册表。云电脑测试用 `-FixturePath` 注入虚构清单。
+- 部署时把完整采集结果写入盒子内**原始清单**（不自动交给 Claude，不进 git）
+- 每字段模式为 `expose` / `hide` / `override`；设置页编辑并保存
+- 默认策略与上表一致；用户授权后，指定编码可以进入展示层（原样或修改后）
+- 硬开关让位于按字段授权，但默认隐藏编码的测试仍须保留
+
+### 真机采集（尚未做）
+
+当前 `src/wsl-box/host/Export-ClaudeBoxHostIdentity.ps1` **只**读取 `Win32_ComputerSystem` 的 `Manufacturer` 与 `Model`。P2 采集器会扩展为读取完整原始清单（含编码），但只写入盒子内原始清单，默认不发布。云电脑测试用 `-FixturePath` 或等价夹具注入虚构清单，不采集真机编码。
 
 ### 展示层（dry-run 合同）
 
@@ -162,17 +176,19 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 
 | 路径 | 内容 |
 |------|------|
-| `$CLAUDE_BOX_PREFIX/env/host-model.env` | `CLAUDE_BOX_HOST_MANUFACTURER` / `CLAUDE_BOX_HOST_PRODUCT` |
-| `$CLAUDE_BOX_PREFIX/presentation/dmi/id/sys_vendor` | 厂商 |
-| `$CLAUDE_BOX_PREFIX/presentation/dmi/id/product_name` | 产品型号 |
-| `$CLAUDE_BOX_PREFIX/var/host-identity.allowed.yaml` | 净化后的允许字段副本 |
+| `$CLAUDE_BOX_PREFIX/env/host-model.env` | 按策略发布的厂商 / 型号等（现行为 `CLAUDE_BOX_HOST_MANUFACTURER` / `CLAUDE_BOX_HOST_PRODUCT`） |
+| `$CLAUDE_BOX_PREFIX/presentation/dmi/id/sys_vendor` | 厂商（若策略为展示或修改后展示） |
+| `$CLAUDE_BOX_PREFIX/presentation/dmi/id/product_name` | 产品型号（若策略为展示或修改后展示） |
+| `$CLAUDE_BOX_PREFIX/var/host-identity.allowed.yaml` | 按策略生成的展示副本 |
+| `$CLAUDE_BOX_PREFIX/var/host-inventory.raw.yaml`（规划） | 原始清单；不得被当作展示层读取 |
 
-`guest/apply-host-identity.sh` 会丢弃清单里的禁止字段，并拒绝把看起来像 UUID / MAC 的值当作型号发布。`guest/verify-host-identity.sh` 在型号可见、禁止值出现在展示层或 advertised env、或夹具序列号泄漏时失败。既有 TZ / locale 探针仍须通过。
+现行 `guest/apply-host-identity.sh` 会丢弃清单里的禁止字段，并拒绝把看起来像 UUID / MAC 的值当作型号发布。`guest/verify-host-identity.sh` 在禁止值出现在展示层或 advertised env、或夹具序列号泄漏时失败。既有 TZ / locale 探针仍须通过。P3 接线后，verify 改为对照用户策略：隐藏字段不得出现在展示层；`expose` / `override` 的字段必须与策略一致。
 
-真机 WSL 若以后要做 DMI overlay，也必须遵守同一合同：只发布型号，不发布编码；仍不以「隐藏 WSL」为目标。
+真机 WSL 若以后要做 DMI overlay，也必须遵守同一合同：只发布策略允许的字段；仍不以「隐藏 WSL」为目标。
 
 ### 尚未完成
 
+- 未实现设置页与按字段授权引擎（见 [framework-build-plan.md](./framework-build-plan.md) P1–P4）
 - 未在和零的 Win11 上启用 WSL，也未把展示层接到真实 Claude Desktop 进程
 - 未改写活的 `/sys/class/dmi`（dry-run 明确不做）
 - 未屏蔽 WSL 内核标识（不会当作缺陷来「修」）

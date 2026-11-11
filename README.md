@@ -7,9 +7,9 @@
 
 ## 当前怎么走
 
-1. 读 [SCOPE.md](./SCOPE.md)（v0.3.3）  
+1. 读 [SCOPE.md](./SCOPE.md)（v0.4.0）  
 2. 读 [docs/architecture-v2-wsl.md](./docs/architecture-v2-wsl.md)  
-3. 在 Win11 上按 [src/wsl-box/README.md](./src/wsl-box/README.md) 启用 WSL2 → 建 `ClaudeBox` 发行版 → 伪装启动  
+3. 当前在云电脑按 [docs/framework-build-plan.md](./docs/framework-build-plan.md) 搭框架（C++/Qt 控件 + 既有 wsl-box dry-run）。真机启用 WSL 须和零再批准，步骤仍见 [src/wsl-box/README.md](./src/wsl-box/README.md)  
 
 **硬约束**：隔离、唯一网关、目录可见（切断默认 `/mnt/c`）、进程内 TZ/locale 伪装、拦 Sentry/Datadog/`event_logging`。  
 **宿主**：Win11 保持东八区 + 简中；只在 WSL/进程里伪装。  
@@ -17,7 +17,9 @@
 
 ## 文档
 
-- [SCOPE.md](./SCOPE.md) — 范围 v0.3.3  
+- [SCOPE.md](./SCOPE.md) — 范围 v0.4.0  
+- [docs/framework-build-plan.md](./docs/framework-build-plan.md) — 框架搭建计划（云电脑做到接近 beta）  
+- [docs/identity-presentation.md](./docs/identity-presentation.md) — 身份展示：采集、设置页、按字段授权  
 - [docs/architecture-v2-wsl.md](./docs/architecture-v2-wsl.md) — **架构 v2：主方案 WSL**  
 - [docs/spoofing-timezone-locale.md](./docs/spoofing-timezone-locale.md) — 伪装：环境优先 / asar 备用  
 - [docs/kill-on-local-ip-change.md](./docs/kill-on-local-ip-change.md) — 可选：本机 IP 波动杀 Claude（默认关）  

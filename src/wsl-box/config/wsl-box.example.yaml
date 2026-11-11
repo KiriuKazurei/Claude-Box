@@ -46,18 +46,18 @@ spec:
     # 可选 Electron 参数
     electron_lang: en-US
 
-  # 机型可真、编码不可见：可向 Desktop 提供宿主真实厂商 / 产品型号。
-  # 不得暴露序列号、主板/机箱 UUID、MAC、磁盘序列号、CPU ID、
-  # Windows MachineGuid、设备实例路径等硬件编码。
-  # 真机上由 host/Export-ClaudeBoxHostIdentity.ps1 只读取 Manufacturer/Model 后写入；
-  # 云电脑测试用夹具注入。不要把真实序列号填进本文件。
-  # 时区/语言仍只在盒子内伪装，不因「给真实机型」而放宽。
-  # 本段不是为了隐藏 WSL / 虚拟机特征。
+  # 身份展示（SCOPE v0.4.0）：部署后采集，设置页按字段选择
+  # 原样展示 / 隐藏 / 修改后展示。默认厂商与型号可展示，硬件编码默认隐藏。
+  # 见 docs/identity-presentation.md。
+  # 下列 hide_identifiers 是 P1 策略引擎接上之前的过渡硬开关：
+  # 必须为 true，关闭则现行 apply/verify 失败。
+  # 真机完整采集由 P2 写入盒子内原始清单，不要把真实编码填进本文件。
+  # 时区/语言仍只在盒子内伪装。本段不是为了隐藏 WSL / 虚拟机特征。
   host_identity:
     expose_real_model: true
     manufacturer: ""
     product: ""
-    # 硬约束：必须为 true。关闭则 apply/verify 失败。
+    # 过渡硬开关：必须为 true。关闭则现行 apply/verify 失败。
     hide_identifiers: true
     hidden_identifier_keys:
       - serial
