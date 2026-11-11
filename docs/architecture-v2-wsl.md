@@ -30,6 +30,7 @@ Anthropic 文档对 WSL 用户的建议是：**装 Windows Claude Desktop，再�
 | 唯一网关出网 | 宿主 gost/Clash；发行版内 `HTTP(S)_PROXY`/`ALL_PROXY` + 可选 nftables 强制 |
 | 目录可见性 | **切断默认 `/mnt/c`**；只 bind-mount `visible_dirs` |
 | 环境伪装 | `TZ`、`LANG`/`LC_*`、`/etc/localtime`、可选 `--lang`（不改宿主） |
+| 机型可真、编码不可见 | 可从宿主注入真实厂商 / 产品型号供 Desktop 读取；**禁止**传入或泄漏序列号、主板/机箱 UUID、MAC、磁盘序列号、CPU ID、MachineGuid 等硬件编码 |
 | 反遥测 | 网关/hosts/nft 拦 Sentry、Datadog RUM、`/api/event_logging` |
 | Computer use | **已降权**；Linux Desktop 官方无 CU |
 | 可选止血（默认关） | 本机 IP 波动 → 礼貌关再强杀 Claude（学 claude-switcher；见 [kill-on-local-ip-change.md](./kill-on-local-ip-change.md)） |

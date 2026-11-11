@@ -7,7 +7,7 @@
 
 ## 当前怎么走
 
-1. 读 [SCOPE.md](./SCOPE.md)（v0.3.2）  
+1. 读 [SCOPE.md](./SCOPE.md)（v0.3.3）  
 2. 读 [docs/architecture-v2-wsl.md](./docs/architecture-v2-wsl.md)  
 3. 在 Win11 上按 [src/wsl-box/README.md](./src/wsl-box/README.md) 启用 WSL2 → 建 `ClaudeBox` 发行版 → 伪装启动  
 
@@ -17,7 +17,7 @@
 
 ## 文档
 
-- [SCOPE.md](./SCOPE.md) — 范围 v0.3.2  
+- [SCOPE.md](./SCOPE.md) — 范围 v0.3.3  
 - [docs/architecture-v2-wsl.md](./docs/architecture-v2-wsl.md) — **架构 v2：主方案 WSL**  
 - [docs/spoofing-timezone-locale.md](./docs/spoofing-timezone-locale.md) — 伪装：环境优先 / asar 备用  
 - [docs/kill-on-local-ip-change.md](./docs/kill-on-local-ip-change.md) — 可选：本机 IP 波动杀 Claude（默认关）  
