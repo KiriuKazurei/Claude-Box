@@ -19,7 +19,13 @@ need=(
   src/wsl-box/guest/gateway-tips.sh
   src/wsl-box/guest/install-claude-desktop.sh
   src/wsl-box/guest/start-claude-desktop.sh
+  src/wsl-box/guest/apply-host-identity.sh
+  src/wsl-box/guest/verify-host-identity.sh
+  src/wsl-box/guest/lib/host-identity.py
+  src/wsl-box/host/Export-ClaudeBoxHostIdentity.ps1
   src/wsl-box/linux/Install-ClaudeBoxFramework.sh
+  tests/wsl-box/fixtures/host-inventory.raw.yaml
+  tests/wsl-box/test-host-identity.sh
   src/wsl-box/linux/Run-Smoke.sh
   src/wsl-box/linux/Install-ClaudeDesktop.sh
   src/wsl-box/linux/lib/common.sh
@@ -48,6 +54,12 @@ pass "oauth_open_in_fingerprint_browser default true"
 grep -q 'identity_vault:\s*true' src/wsl-box/config/wsl-box.example.yaml \
   || fail "example yaml must default identity_vault: true"
 pass "identity_vault default true"
+
+grep -q 'hide_identifiers:\s*true' src/wsl-box/config/wsl-box.example.yaml \
+  || fail "example yaml must set hide_identifiers: true"
+grep -q 'expose_real_model:\s*true' src/wsl-box/config/wsl-box.example.yaml \
+  || fail "example yaml must set expose_real_model: true"
+pass "hide_identifiers default true"
 
 # .run gitignored
 grep -qE '^\.run/?$' .gitignore || fail ".run/ not in .gitignore"
@@ -91,5 +103,8 @@ else
     pass "Install-ClaudeDesktop --check fails clearly without deb"
   fi
 fi
+
+# Host identity: model visible, identifiers hidden, TZ still spoofed
+bash tests/wsl-box/test-host-identity.sh
 
 echo "ALL GREEN (linux framework)"

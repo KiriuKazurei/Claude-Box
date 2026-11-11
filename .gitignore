@@ -42,3 +42,7 @@ src/wsl-box/config/*.local.yaml
 
 # Cloud / local dry-run prefix (synced guest + session env)
 .run/
+
+# Python bytecode
+__pycache__/
+*.py[cod]

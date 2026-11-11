@@ -30,8 +30,12 @@ $elang = Get-YamlScalar $raw 'electron_lang'
 $ghost = Get-YamlScalar $raw 'host'
 $gport = Get-YamlScalar $raw 'http_port'; if (-not $gport) { $gport = '3080' }
 $cmd = Get-YamlScalar $raw 'command'; if (-not $cmd) { $cmd = 'claude-desktop' }
+$man = Get-YamlScalar $raw 'manufacturer'; if (-not $man) { $man = '' }
+$prod = Get-YamlScalar $raw 'product'; if (-not $prod) { $prod = '' }
+$hideIds = Get-YamlScalar $raw 'hide_identifiers'; if (-not $hideIds) { $hideIds = 'true' }
 
-Write-Host "[claude-box/wsl] Start $distro TZ=$tz locale=$locale gateway=$ghost:$gport"
+Write-Host "[claude-box/wsl] Start $distro TZ=$tz locale=$locale gateway=${ghost}:${gport}"
+Write-Host "  host identity: manufacturer=$man product=$prod hide_identifiers=$hideIds"
 
 if (-not (Test-IsWindows)) {
     Write-Warning "Not Windows — would invoke guest start-claude-desktop.sh with spoof env."
@@ -59,6 +63,10 @@ $args = @(
     'NO_PROXY=localhost,127.0.0.1',
     "CLAUDE_BOX_ELECTRON_LANG=$elang",
     "CLAUDE_BOX_DESKTOP_CMD=$cmd",
+    "CLAUDE_BOX_HOST_MANUFACTURER=$man",
+    "CLAUDE_BOX_HOST_PRODUCT=$prod",
+    "CLAUDE_BOX_HIDE_IDENTIFIERS=$hideIds",
+    "CLAUDE_BOX_PREFIX=/opt/claude-box",
     '/opt/claude-box/guest/start-claude-desktop.sh'
 )
 Write-Host "wsl $($args -join ' ')"

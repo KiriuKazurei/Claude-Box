@@ -8,6 +8,10 @@ if [[ -n "${CLAUDE_BOX_PREFIX:-}" && -f "${CLAUDE_BOX_PREFIX}/env/session.env" ]
   # shellcheck disable=SC1090
   source "${CLAUDE_BOX_PREFIX}/env/session.env"
 fi
+if [[ -n "${CLAUDE_BOX_PREFIX:-}" && -f "${CLAUDE_BOX_PREFIX}/env/host-model.env" ]]; then
+  # shellcheck disable=SC1090
+  source "${CLAUDE_BOX_PREFIX}/env/host-model.env"
+fi
 # shellcheck source=/dev/null
 source "$ROOT_DIR/apply-spoof.sh"
 

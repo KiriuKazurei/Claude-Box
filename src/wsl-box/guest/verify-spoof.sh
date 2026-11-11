@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Probe timezone/locale as Electron/Intl would see them (node if present, else date).
+# Probe timezone/locale as Electron/Intl would see them (node if present, else date),
+# then verify host model presentation / identifier hiding.
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "[claude-box] verify-spoof"
 echo "env TZ=${TZ:-<(unset)>} LANG=${LANG:-<(unset)>} LC_ALL=${LC_ALL:-<(unset)>}"
@@ -19,3 +22,8 @@ else
 fi
 
 echo "Telemetry block reminder: ensure gateway blocks Sentry / Datadog RUM / event_logging"
+
+# Host identity contract (presentation layer, not live /sys/class/dmi).
+if [[ -x "$SCRIPT_DIR/verify-host-identity.sh" ]]; then
+  bash "$SCRIPT_DIR/verify-host-identity.sh"
+fi

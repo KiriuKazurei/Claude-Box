@@ -30,6 +30,9 @@ bash tests/wsl-box/test-linux-framework.sh
 - 前缀默认：`<repo>/.run/claude-box`（已 gitignore）；可用 `CLAUDE_BOX_PREFIX` / `CLAUDE_BOX_CONFIG` 覆盖。
 - 读 `config/wsl-box.yaml`（若有）否则 `wsl-box.example.yaml`。
 - `apply-spoof` 无 root 时只做 session env；写 `/etc/localtime` 需 `sudo`。
+- 机型：`apply-host-identity.sh` 把厂商 / 型号写到 `$CLAUDE_BOX_PREFIX/env/host-model.env` 和 `presentation/dmi/id/`（`sys_vendor`、`product_name`）。硬件编码（序列号、UUID、MAC、磁盘序列号、CPU ID、MachineGuid、设备实例路径）不会写入展示层。`hide_identifiers` 必须为 true。
+- 本机 `/sys/class/dmi` 在 dry-run 上**不会**改写（通常需特权且由内核提供）。verify 读的是展示层。内核名 `microsoft-standard-WSL2` 等痕迹会保持可见，这不是缺陷。
+- 真机导出：`host/Export-ClaudeBoxHostIdentity.ps1` 只读 `Win32_ComputerSystem` 的 Manufacturer / Model。测试夹具：`tests/wsl-box/fixtures/host-inventory.raw.yaml`（虚构值）。
 - Desktop 安装**只认** `installers/linux/*.deb` 或 `CLAUDE_BOX_DEB`；缺包则明确失败，不自动下载。
 
 ## 和零机器（Win11）快速路径

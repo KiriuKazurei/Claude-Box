@@ -26,6 +26,9 @@ claude_box_log "TZ=$TZ LANG=$LANG gateway=${CLAUDE_BOX_GATEWAY_HOST:-}:$CLAUDE_B
 claude_box_log "features.kill_on_local_ip_change=${CLAUDE_BOX_KILL_ON_LOCAL_IP_CHANGE:-false}"
 claude_box_log "features.oauth_open_in_fingerprint_browser=${CLAUDE_BOX_OAUTH_OPEN_IN_FINGERPRINT_BROWSER:-true}"
 claude_box_log "features.identity_vault=${CLAUDE_BOX_IDENTITY_VAULT:-true}"
+claude_box_log "host_identity.expose_real_model=${CLAUDE_BOX_EXPOSE_REAL_MODEL:-true}"
+claude_box_log "host_identity.hide_identifiers=${CLAUDE_BOX_HIDE_IDENTIFIERS:-true}"
+claude_box_log "host_identity.manufacturer=${CLAUDE_BOX_HOST_MANUFACTURER:-<(empty)>} product=${CLAUDE_BOX_HOST_PRODUCT:-<(empty)>}"
 
 # 1) apply-spoof (session-level; /etc only if root)
 bash "$GUEST/apply-spoof.sh"
@@ -76,6 +79,27 @@ case "${CLAUDE_BOX_IDENTITY_VAULT:-true}" in
   true|True|TRUE|1|yes|Yes|on|On) ;;
   *) claude_box_die "identity_vault must default true (got ${CLAUDE_BOX_IDENTITY_VAULT})" ;;
 esac
+
+# hide_identifiers is a hard constraint (must stay true)
+case "${CLAUDE_BOX_HIDE_IDENTIFIERS:-true}" in
+  true|True|TRUE|1|yes|Yes|on|On) ;;
+  *) claude_box_die "hide_identifiers must stay true (got ${CLAUDE_BOX_HIDE_IDENTIFIERS})" ;;
+esac
+
+# Presentation layer must exist after apply-spoof (even if model is empty)
+if [[ ! -f "$PREFIX/env/host-model.env" ]]; then
+  claude_box_die "host-model.env missing after apply-spoof"
+fi
+if [[ ! -f "$PREFIX/presentation/dmi/id/sys_vendor" || ! -f "$PREFIX/presentation/dmi/id/product_name" ]]; then
+  claude_box_die "DMI presentation tree missing after apply-spoof"
+fi
+# Identifier files must not be published
+for bad in product_serial product_uuid board_serial chassis_serial chassis_uuid; do
+  if [[ -e "$PREFIX/presentation/dmi/id/$bad" ]]; then
+    claude_box_die "forbidden DMI file published: $bad"
+  fi
+done
+claude_box_log "host-identity presentation layer present; identifier files absent"
 
 # 8) OA opener stub must refuse host-browser fallback when engine is missing
 stub="$(claude_box_repo_root)/src/wsl-box/companion-browser/open-oauth-url.sh"

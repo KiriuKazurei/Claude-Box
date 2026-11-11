@@ -24,12 +24,22 @@ claude_box_log "prefix=$PREFIX"
 
 mkdir -p "$GUEST_DST" "$ENV_DIR" "$BIN_DIR" "${PREFIX}/var"
 
-# Sync guest scripts (idempotent)
+# Sync guest scripts + lib (idempotent)
 shopt -s nullglob
 for f in "$GUEST_SRC"/*.sh; do
   base="$(basename "$f")"
   install -m 0755 "$f" "$GUEST_DST/$base"
 done
+if [[ -d "$GUEST_SRC/lib" ]]; then
+  mkdir -p "$GUEST_DST/lib"
+  for f in "$GUEST_SRC/lib"/*; do
+    [[ -f "$f" ]] || continue
+    install -m 0644 "$f" "$GUEST_DST/lib/$(basename "$f")"
+    if [[ "$f" == *.sh || "$f" == *.py ]]; then
+      chmod 0755 "$GUEST_DST/lib/$(basename "$f")"
+    fi
+  done
+fi
 shopt -u nullglob
 
 # Wrapper so PATH can call guest scripts from prefix
@@ -75,6 +85,10 @@ generated=$(date -Iseconds)
 kill_on_local_ip_change=$(yaml_scalar "$CFG" kill_on_local_ip_change false)
 oauth_open_in_fingerprint_browser=$(yaml_scalar "$CFG" oauth_open_in_fingerprint_browser true)
 identity_vault=$(yaml_scalar "$CFG" identity_vault true)
+expose_real_model=$(yaml_scalar "$CFG" expose_real_model true)
+hide_identifiers=$(yaml_scalar "$CFG" hide_identifiers true)
+host_manufacturer=$(yaml_scalar "$CFG" manufacturer "")
+host_product=$(yaml_scalar "$CFG" product "")
 MAN
 
 claude_box_log "synced guest → $GUEST_DST"

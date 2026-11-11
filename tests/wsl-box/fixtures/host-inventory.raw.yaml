@@ -1,0 +1,23 @@
+# Simulated host-side inventory for tests. NOT a real machine.
+# Includes both allowed model fields and forbidden hardware identifiers
+# so apply/verify can prove identifiers are dropped.
+# Do not replace these with anyone's real serials, UUIDs, or MAC addresses.
+
+manufacturer: Contoso Computers
+Manufacturer: Contoso Computers
+product: ContosoBook 15 G3
+Model: ContosoBook 15 G3
+
+# Forbidden identifiers (must never appear in the presentation layer):
+serial: SN-C0NT0S0-9F3A-0001
+SerialNumber: SN-C0NT0S0-9F3A-0001
+chassis_uuid: 550e8400-e29b-41d4-a716-446655440000
+board_uuid: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+product_uuid: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+mac: "02:11:22:33:44:55"
+mac_address: "02:11:22:33:44:55"
+disk_serial: WD-WCC4N7FIXTURE
+cpu_id: BFEBFBFF000906EA
+processor_id: BFEBFBFF000906EA
+machine_guid: 8d4f3c2a-1b6e-4f90-9c11-deadbeef1234
+device_instance_path: "PCI\\VEN_8086&DEV_1234&SUBSYS_5678&REV_01\\3&33FD128&0&A8"

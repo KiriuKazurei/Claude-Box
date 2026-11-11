@@ -78,12 +78,13 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
   /opt/claude-box/guest/start-claude-desktop.sh
 ```
 
-发行版内 `apply-spoof.sh`：
+发行版内 `apply-spoof.sh`（会接着跑 `apply-host-identity.sh`）：
 
 1. `ln -sfn /usr/share/zoneinfo/$TZ /etc/localtime`（需一次特权或镜像预置）
 2. 写入 `/etc/default/locale` 或 session env（与配置一致）
 3. 可选：Desktop 启动追加 `--lang=en-US`
-4. **备用**（默认关）：asar 定点改写 `lg()` / `bCt()`（见 spoofing 文档）
+4. 将允许的厂商 / 型号写入展示层（见下节）；**不**写入硬件编码
+5. **备用**（默认关）：asar 定点改写 `lg()` / `bCt()`（见 spoofing 文档）
 
 ## 挂载策略
 
@@ -127,7 +128,7 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 | ID | 交付 | 验收 |
 |----|------|------|
 | **W0** | 文档 + `src/wsl-box` 脚手架 | 本仓库可本地 commit；脚本可在无 WSL 的 CI 上做语法/结构检查 |
-| **W0.5** | **云电脑 Linux dry-run 框架**（`src/wsl-box/linux/`） | 无 Win11/WSL：同步 guest → `.run/claude-box`；`Run-Smoke` 过 apply-spoof / verify / gateway tips；Desktop 仅本地 deb `--check`；见下节 |
+| **W0.5** | **云电脑 Linux dry-run 框架**（`src/wsl-box/linux/`） | 无 Win11/WSL：同步 guest → `.run/claude-box`；`Run-Smoke` 过 apply-spoof / verify / gateway tips / host identity；Desktop 仅本地 deb `--check`；见下节 |
 | **W1** | 和零机器：启用 WSL2、导入/创建 `ClaudeBox`、关默认 automount | `ls /mnt/c` 失败或为空；`visible_dirs` 可见 |
 | **W2** | 安装 Linux Desktop + `apply-spoof` + 经网关启动 | 探针：`Intl` timeZone / locale = 假值；流量进网关 JSONL |
 | **W3** | 遥测拦截复盘 | Sentry/Datadog/event_logging 被拦或 culture 已是假值 |
@@ -136,6 +137,46 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 | **W6** | OA 跳转走伴生指纹浏览器 | 授权 URL 不落入宿主默认浏览器；独立 profile；时区/语言与盒子 identity 一致；流量进网关；引擎未就绪则拒绝打开（不回退宿主浏览器） |
 | **W7** | 盒子内身份保险库 | 归档/切换/回滚只动盒子目录；宿主时区语言与默认 Claude 目录不变；可选与伴生浏览器 profile 绑定 |
 
+## 机型注入与硬件编码屏蔽
+
+和零（2026-11-11 · SCOPE v0.3.3）：Desktop **可以**看到宿主真实的厂商与产品型号；**不得**看到序列号、主板/机箱 UUID、MAC、磁盘序列号、CPU 处理器 ID、Windows MachineGuid、设备实例路径等硬件编码。时区 / 语言伪装不因此放宽。
+
+这不是「把环境装成普通真机」或隐藏 WSL。内核名 `microsoft-standard-WSL2`、virtio、hypervisor 标志等痕迹会继续存在，本方案不把它们当成要修掉的缺陷。
+
+### 配置
+
+`spec.host_identity`（见 `src/wsl-box/config/wsl-box.example.yaml`）：
+
+- `expose_real_model: true`：允许发布厂商 / 型号
+- `manufacturer` / `product`：可选预填；真机上通常由导出脚本写入，不必把真实型号提交进仓库
+- `hide_identifiers: true`：**硬约束**。设为 false 时 apply / verify 必须失败
+- `hidden_identifier_keys`：文档 + 校验清单（serial、UUID、MAC、disk_serial、cpu_id、machine_guid、device_instance_path 等）。代码里还有一份内置黑名单，配置删掉某项也不会放开
+
+### 真机（尚未做）
+
+`src/wsl-box/host/Export-ClaudeBoxHostIdentity.ps1` **只**读取 `Win32_ComputerSystem` 的 `Manufacturer` 与 `Model`，写成 guest 侧允许清单。不查询 `Win32_BIOS` 序列号、`Win32_ComputerSystemProduct` UUID、网卡 MAC、磁盘序列号、`Win32_Processor.ProcessorId`、或 `MachineGuid` 注册表。云电脑测试用 `-FixturePath` 注入虚构清单。
+
+### 展示层（dry-run 合同）
+
+本机 `/sys/class/dmi/id` 通常是内核提供的，无特权无法安全改写，本框架**不**在 dry-run 上改写活的 sysfs。Desktop 与 verify 读的是盒子前缀下的展示层：
+
+| 路径 | 内容 |
+|------|------|
+| `$CLAUDE_BOX_PREFIX/env/host-model.env` | `CLAUDE_BOX_HOST_MANUFACTURER` / `CLAUDE_BOX_HOST_PRODUCT` |
+| `$CLAUDE_BOX_PREFIX/presentation/dmi/id/sys_vendor` | 厂商 |
+| `$CLAUDE_BOX_PREFIX/presentation/dmi/id/product_name` | 产品型号 |
+| `$CLAUDE_BOX_PREFIX/var/host-identity.allowed.yaml` | 净化后的允许字段副本 |
+
+`guest/apply-host-identity.sh` 会丢弃清单里的禁止字段，并拒绝把看起来像 UUID / MAC 的值当作型号发布。`guest/verify-host-identity.sh` 在型号可见、禁止值出现在展示层或 advertised env、或夹具序列号泄漏时失败。既有 TZ / locale 探针仍须通过。
+
+真机 WSL 若以后要做 DMI overlay，也必须遵守同一合同：只发布型号，不发布编码；仍不改写「隐藏 WSL」为目标。
+
+### 尚未完成
+
+- 未在和零的 Win11 上启用 WSL，也未把展示层接到真实 Claude Desktop 进程
+- 未改写活的 `/sys/class/dmi`（dry-run 明确不做）
+- 未屏蔽 WSL 内核标识（不会当作缺陷来「修」）
+
 ## 云电脑 Linux dry-run（W0.5）
 
 在 Grok Bot / 云电脑等 **纯 Linux** 环境验证 guest 编排（**不**启用用户 Win11 WSL）：
@@ -143,7 +184,7 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 ```bash
 bash src/wsl-box/linux/Install-ClaudeBoxFramework.sh
 bash src/wsl-box/linux/Run-Smoke.sh
-bash tests/wsl-box/test-linux-framework.sh
+bash tests/wsl-box/test-linux-framework.sh   # 含 test-host-identity.sh
 ```
 
 - 前缀：`<repo>/.run/claude-box`（gitignore）；配置驱动 `TZ`/`LANG`/代理/`blocklist`。
@@ -180,8 +221,8 @@ bash tests/wsl-box/test-linux-framework.sh
 
 ## 代码入口
 
-- Host：`src/wsl-box/host/`
-- Guest：`src/wsl-box/guest/`
+- Host：`src/wsl-box/host/`（含 `Export-ClaudeBoxHostIdentity.ps1`，只导出厂商/型号）
+- Guest：`src/wsl-box/guest/`（`apply-host-identity.sh` / `verify-host-identity.sh`）
 - **Cloud Linux dry-run**：`src/wsl-box/linux/`（`Install-ClaudeBoxFramework.sh` / `Run-Smoke.sh`）
 - 配置示例：`src/wsl-box/config/wsl-box.example.yaml`
 - README：`src/wsl-box/README.md`

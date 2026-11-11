@@ -46,6 +46,33 @@ spec:
     # 可选 Electron 参数
     electron_lang: en-US
 
+  # 机型可真、编码不可见：可向 Desktop 提供宿主真实厂商 / 产品型号。
+  # 不得暴露序列号、主板/机箱 UUID、MAC、磁盘序列号、CPU ID、
+  # Windows MachineGuid、设备实例路径等硬件编码。
+  # 真机上由 host/Export-ClaudeBoxHostIdentity.ps1 只读取 Manufacturer/Model 后写入；
+  # 云电脑测试用夹具注入。不要把真实序列号填进本文件。
+  # 时区/语言仍只在盒子内伪装，不因「给真实机型」而放宽。
+  # 本段不是为了隐藏 WSL / 虚拟机特征。
+  host_identity:
+    expose_real_model: true
+    manufacturer: ""
+    product: ""
+    # 硬约束：必须为 true。关闭则 apply/verify 失败。
+    hide_identifiers: true
+    hidden_identifier_keys:
+      - serial
+      - serial_number
+      - chassis_uuid
+      - board_uuid
+      - product_uuid
+      - mac
+      - mac_address
+      - disk_serial
+      - cpu_id
+      - processor_id
+      - machine_guid
+      - device_instance_path
+
   desktop:
     # 安装脚本下载 URL 或本地 deb 路径（宿主路径，启动前拷进发行版）
     deb_url: ""

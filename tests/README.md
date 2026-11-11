@@ -12,7 +12,9 @@ pwsh -File tests/Test-Structure.ps1
 pwsh -File tests/test-wsl-box-structure.ps1
 ```
 
-`wsl-box/test-linux-framework.sh` — 云电脑 / Linux dry-run：同步 `.run/`、apply-spoof、verify、gateway tips、Desktop `--check`。
+`wsl-box/test-linux-framework.sh` — 云电脑 / Linux dry-run：同步 `.run/`、apply-spoof、verify、gateway tips、Desktop `--check`、host identity（型号可见、编码不可见）。
+
+`wsl-box/test-host-identity.sh` — 夹具含虚构型号与禁止的硬件编码；apply 后型号进入展示层，编码不得泄漏，时区伪装仍有效。
 
 ```bash
 bash tests/wsl-box/test-linux-framework.sh

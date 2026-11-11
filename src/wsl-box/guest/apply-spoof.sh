@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
-# Apply TZ / locale spoof inside the ClaudeBox distro (env-first; no asar patch).
+# Apply TZ / locale spoof inside the ClaudeBox distro (env-first; no asar patch),
+# then publish host manufacturer/product (never hardware identifiers).
 # Idempotent. Non-root: session env only (+ optional CLAUDE_BOX_PREFIX persistence).
 # Root: also /etc/localtime, /etc/timezone, /etc/profile.d/claude-box-spoof.sh.
+# Host model is written to $CLAUDE_BOX_PREFIX/presentation and env/host-model.env;
+# live /sys/class/dmi is not rewritten.
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 TZ_VALUE="${TZ:-America/Los_Angeles}"
 LOCALE_VALUE="${LANG:-en_US.UTF-8}"
@@ -52,6 +57,12 @@ export LC_ALL="$LOCALE_VALUE"
 export LANGUAGE="$LANGUAGE_VALUE"
 INNER
   echo "[claude-box] wrote $PREFIX/env/spoof.env"
+fi
+
+# Host identity: real manufacturer/product may be published; identifiers never are.
+# TZ/locale spoofing is not relaxed when a real model is present.
+if [[ -x "$SCRIPT_DIR/apply-host-identity.sh" ]]; then
+  bash "$SCRIPT_DIR/apply-host-identity.sh"
 fi
 
 echo "[claude-box] apply-spoof done"

@@ -14,4 +14,7 @@ bash src/wsl-box/linux/Install-ClaudeDesktop.sh --check   # 本地 deb only
 bash tests/wsl-box/test-linux-framework.sh
 ```
 
-环境变量：`CLAUDE_BOX_PREFIX`（默认 `<repo>/.run/claude-box`）、`CLAUDE_BOX_CONFIG`、`CLAUDE_BOX_DEB`。
+环境变量：`CLAUDE_BOX_PREFIX`（默认 `<repo>/.run/claude-box`）、`CLAUDE_BOX_CONFIG`、`CLAUDE_BOX_DEB`、`CLAUDE_BOX_HOST_INVENTORY`（可选，宿主侧原始清单；apply 只保留厂商/型号）。
+
+`Run-Smoke.sh` 会跑 TZ/locale 伪装和 host identity 展示层（型号可发布，编码必须被丢掉）。单独验收：`bash tests/wsl-box/test-host-identity.sh`。
+不改写活的 `/sys/class/dmi`，也不隐藏 WSL 内核标识。
