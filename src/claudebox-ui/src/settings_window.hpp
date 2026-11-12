@@ -45,6 +45,9 @@ public:
     QString gatewayStatusText() const;
     void refreshGatewayStatus();
 
+    QString spoofStatusText() const;
+    void refreshSpoofStatus();
+
     void setLineValue(const QString& object_name, const QString& value);
     QString lineValue(const QString& object_name) const;
     void setChecked(const QString& object_name, bool checked);
@@ -64,6 +67,7 @@ private slots:
     void onAddExtraArg();
     void onRemoveExtraArg();
     void onRefreshGatewayStatus();
+    void onRefreshSpoofStatus();
 
 private:
     void buildUi();
@@ -92,4 +96,5 @@ private:
     QLabel* status_label_ = nullptr;
     QPlainTextEdit* runtime_preview_ = nullptr;
     QPlainTextEdit* gateway_status_ = nullptr;
+    QPlainTextEdit* spoof_status_ = nullptr;
 };

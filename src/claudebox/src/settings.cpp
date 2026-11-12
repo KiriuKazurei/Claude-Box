@@ -2,6 +2,7 @@
 #include "claudebox/collect.hpp"
 #include "claudebox/mount.hpp"
 #include "claudebox/gateway.hpp"
+#include "claudebox/spoof.hpp"
 
 
 #include <stdexcept>
@@ -128,6 +129,18 @@ SaveResult Session::save() {
             }
             return result;
         }
+        const auto spoof_plan = claudebox::spoof::plan(
+            claudebox::spoof::from_config(config.identity), paths.prefix);
+        if (!spoof_plan.ok) {
+            result.error = spoof_plan.errors.empty()
+                               ? "spoof plan rejected"
+                               : spoof_plan.errors.front();
+            for (size_t i = 1; i < spoof_plan.errors.size(); ++i) {
+                result.error.append("\n");
+                result.error.append(spoof_plan.errors[i]);
+            }
+            return result;
+        }
         std::filesystem::create_directories(paths.prefix / "var");
         std::filesystem::create_directories(paths.config.parent_path());
         config.save_file(paths.config);
@@ -143,6 +156,12 @@ SaveResult Session::save() {
         const auto issues = verify(inventory, policy, presentation);
         if (!issues.empty()) {
             result.error = issues.front().message;
+            return result;
+        }
+        const auto spoofed = claudebox::spoof::apply_config(config.identity, paths.prefix);
+        if (!spoofed.ok) {
+            result.error = spoofed.error.empty() ? "failed to apply box spoof values"
+                                                 : spoofed.error;
             return result;
         }
         result.ok = true;

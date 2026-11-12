@@ -2,7 +2,7 @@
 
 C++20 + Qt 6 Widgets 设置中心。可以查看并修改 `wsl-box.yaml` 里已有的全部配置段，并用每字段策略决定宿主身份哪些原样展示、隐藏、或修改后再展示。
 
-保存只更新盒子前缀里的配置、`var/host-identity.policy.yaml` 和展示层，**不会**改宿主时区、语言或默认浏览器。网关页可以读写上游、监听、拦截名单和日志路径，并显示 dry-run 中继计划与本地 JSONL 最近活动；不会在这台云电脑上启动 gost。伪装应用、伴生浏览器、Desktop 启停的运行时接线属于后续模块。
+保存只更新盒子前缀里的配置、`var/host-identity.policy.yaml` 和展示层，**不会**改宿主时区、语言或默认浏览器。网关页可以读写上游、监听、拦截名单和日志路径，并显示 dry-run 中继计划与本地 JSONL 最近活动；不会在这台云电脑上启动 gost。身份伪装页保存时会把盒子伪装值应用到前缀（session.env / spoof.env / 前缀内 localtime），不会改宿主时区或语言。伴生浏览器、Desktop 启停的运行时接线属于后续模块。
 
 ## 在云电脑上编译
 
@@ -48,7 +48,7 @@ QT_QPA_PLATFORM=offscreen ./src/claudebox-ui/build/claudebox-settings --prefix "
 - **网关**：宿主、端口、上游 HTTP / SOCKS5、拦截名单、日志；以及 dry-run 状态 / 中继计划 / 最近 JSONL（刷新对着夹具或临时前缀即可）
 - **可见目录**：宿主路径 / 客机路径 / 只读 的列表编辑；保存时走核心挂载计划，拒绝整挂 `C:`、整棵 Users、或客机 `/mnt/c`
 - **挂载**：`disable_automount`
-- **身份伪装**：时区、locale、语言、主机名、Electron 语言（盒子伪装值）
+- **身份伪装**：时区、locale、语言、主机名、Electron 语言（全部是盒子伪装值）。保存后应用到前缀；预览显示配置中的假时区 / 语言和 Intl 探针结果，不会读取宿主真实时区，也没有「暴露宿主真实时区 / 语言」的选项
 - **宿主身份**：原始清单 + 每字段「原样展示 / 隐藏 / 修改后展示」。`hide_identifiers` 保持开启，不是整份公开开关
 - **桌面**：deb URL / 本地路径、启动命令、额外参数、asar 补丁
 - **功能**：排除宿主系统盘、computer use、IP 变化杀进程、伴生指纹浏览器、身份保险库
@@ -61,4 +61,5 @@ QT_QPA_PLATFORM=offscreen ctest --test-dir src/claudebox-ui/build --output-on-fa
 bash tests/claudebox/test-p4-gate.sh
 bash tests/claudebox/test-p4-p5-gate.sh
 bash tests/claudebox/test-p6-gate.sh
+bash tests/claudebox/test-p7-gate.sh
 ```

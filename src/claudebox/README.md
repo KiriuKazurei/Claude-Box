@@ -2,7 +2,7 @@
 
 身份策略引擎：读取电脑信息清单，按每字段的 `expose` / `hide` / `override` 生成展示层，并校验展示层没有泄漏被隐藏的值。
 
-默认策略：厂商 / 型号可原样展示；序列号、UUID、MAC 等硬件编码隐藏。用户策略可以改任一字段。时区 / 语言不在本库处理。
+默认策略：厂商 / 型号可原样展示；序列号、UUID、MAC 等硬件编码隐藏。用户策略可以改任一字段。P7 起时区 / 语言伪装由 `claudebox/spoof.hpp` 写入盒子前缀，不改宿主时区或语言。
 
 ## 构建与测试（云电脑）
 
@@ -74,4 +74,12 @@ bash tests/claudebox/test-p4-p5-gate.sh
 
 ```bash
 bash tests/claudebox/test-p6-gate.sh
+```
+
+## 时区 / 语言伪装（P7）
+
+`claudebox/spoof.hpp` 把配置里的盒子伪装值应用到前缀：`env/spoof.env`、`env/session.env` 里的 `TZ` / `LANG` / `LC_*`，以及前缀内的 `etc/localtime` 与 `etc/timezone`。这与现有 `apply-spoof.sh` 的前缀合同一致，但**不会**写宿主 `/etc/localtime` 或改宿主 TZ。Intl 探针使用配置中的假时区 / 语言，不把宿主真实时区当作默认可展示字段。设置页保存身份伪装时走同一条路径。
+
+```bash
+bash tests/claudebox/test-p7-gate.sh
 ```

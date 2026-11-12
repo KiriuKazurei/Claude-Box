@@ -49,7 +49,7 @@
 - `src/wsl-box/` 的 bash / PowerShell dry-run **保持可跑、测试保持全绿**。P3 已接线：`apply-host-identity.sh` / `verify-host-identity.sh` 调用 C++ `claudebox-identity` 生成并校验展示层。
 - `hide_identifiers: true` 仍是过渡约束（设为 false 会失败，避免整份原始清单被放开）。按字段的 `expose` / `hide` / `override` 通过 `CLAUDE_BOX_IDENTITY_POLICY` 或 `var/host-identity.policy.yaml` 生效。
 - P1 起新增 `src/claudebox/`（C++ 核心）与 `src/claudebox-ui/`（Qt 设置页，P4）。旧的 `ClaudeBox.Control`（WinForms / Hyper-V）只作参考，不再作为主控件方向。
-- 默认策略不变：厂商 / 型号可原样展示，硬件编码默认隐藏；用户策略可以改为展示或修改后展示。设置页（P4）已落地：`src/claudebox-ui/` 可在云电脑用夹具打开，编辑全部 `wsl-box.yaml` 配置段与每字段身份策略。P5 已把 dry-run 挂载计划与发行版生命周期预览接到设置页：只挂 `visible_dirs`，拒绝整挂宿主 `C:` / 整棵 Users / `/mnt/c`，不调用 `wsl.exe`。P6 已把唯一网关的配置与状态接到同一设置页：C++ 核心生成 gost 中继计划、校验上游、按现有后缀规则匹配 blocklist、读写 JSONL；控件可读写上游与日志路径并显示 dry-run 状态。gost 在 Win11 上的实际启动仍由现有 `ClaudeBox.Gateway` 模块负责，本阶段不在云电脑上启动或绑定。
+- 默认策略不变：厂商 / 型号可原样展示，硬件编码默认隐藏；用户策略可以改为展示或修改后展示。设置页（P4）已落地：`src/claudebox-ui/` 可在云电脑用夹具打开，编辑全部 `wsl-box.yaml` 配置段与每字段身份策略。P5 已把 dry-run 挂载计划与发行版生命周期预览接到设置页：只挂 `visible_dirs`，拒绝整挂宿主 `C:` / 整棵 Users / `/mnt/c`，不调用 `wsl.exe`。P6 已把唯一网关的配置与状态接到同一设置页：C++ 核心生成 gost 中继计划、校验上游、按现有后缀规则匹配 blocklist、读写 JSONL；控件可读写上游与日志路径并显示 dry-run 状态。gost 在 Win11 上的实际启动仍由现有 `ClaudeBox.Gateway` 模块负责，本阶段不在云电脑上启动或绑定。 P7 已把时区 / 语言伪装接到同一设置页：保存身份伪装时，C++ 核心把盒子伪装值写入前缀（`env/spoof.env`、`env/session.env`、前缀内 `etc/localtime`），并用 Intl 探针校验配置中的假时区 / 语言；不写宿主 `/etc/localtime`，也不把宿主真实时区当作默认可展示字段。现有 `apply-spoof.sh` / `verify-spoof.sh` 合同保持可用。
 
 ## 工作约定
 

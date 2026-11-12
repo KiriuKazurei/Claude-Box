@@ -1,8 +1,11 @@
 #include "settings_window.hpp"
 
+#include <filesystem>
+
 #include "claudebox/identity.hpp"
 #include "claudebox/mount.hpp"
 #include "claudebox/gateway.hpp"
+#include "claudebox/spoof.hpp"
 
 #include <algorithm>
 
@@ -322,16 +325,39 @@ QWidget* SettingsWindow::buildSpoofPage() {
     auto* page = new QWidget;
     auto* layout = new QVBoxLayout(page);
     layout->addWidget(noteLabel(
-        u8("以下是盒子内的伪装值，只写入盒子配置。不会改宿主时区、语言或默认浏览器，"
-           "也不把「暴露宿主真实时区 / 语言」当作可展示的清单字段。")));
+        u8("以下全部是盒子内的伪装值，不是宿主真实时区或语言。"
+           "保存时会写入盒子配置，并把伪装应用到盒子前缀"
+           "（env/spoof.env、env/session.env、etc/localtime）。"
+           "不会改宿主 /etc/localtime、系统时区、显示语言或默认浏览器，"
+           "也没有「把宿主真实时区 / 语言交给 Claude」的选项或清单字段。")));
     auto* form = new QFormLayout;
-    form->addRow(u8("时区"), namedEdit(QStringLiteral("timezoneEdit")));
-    form->addRow(u8("区域设置（locale）"), namedEdit(QStringLiteral("localeEdit")));
-    form->addRow(u8("语言"), namedEdit(QStringLiteral("languageEdit")));
-    form->addRow(u8("主机名"), namedEdit(QStringLiteral("hostnameEdit")));
-    form->addRow(u8("Electron 语言"), namedEdit(QStringLiteral("electronLangEdit")));
+    form->addRow(u8("盒子时区（IANA）"), namedEdit(QStringLiteral("timezoneEdit")));
+    form->addRow(u8("盒子区域设置（locale）"), namedEdit(QStringLiteral("localeEdit")));
+    form->addRow(u8("盒子语言"), namedEdit(QStringLiteral("languageEdit")));
+    form->addRow(u8("盒子主机名"), namedEdit(QStringLiteral("hostnameEdit")));
+    form->addRow(u8("盒子 Electron 语言"), namedEdit(QStringLiteral("electronLangEdit")));
     layout->addLayout(form);
-    layout->addStretch(1);
+
+    auto* statusBox = new QGroupBox(u8("伪装状态与预览"));
+    auto* statusLayout = new QVBoxLayout(statusBox);
+    statusLayout->addWidget(noteLabel(
+        u8("根据当前表单生成盒子伪装计划，并在已保存时校验前缀里的伪装文件与 Intl 探针。"
+           "这里看到的永远是配置中的假时区 / 语言，不会读取或展示宿主真实时区。")));
+    spoof_status_ = new QPlainTextEdit;
+    spoof_status_->setObjectName(QStringLiteral("spoofStatusPreview"));
+    spoof_status_->setReadOnly(true);
+    spoof_status_->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+    spoof_status_->setMinimumHeight(180);
+    auto font = spoof_status_->font();
+    font.setStyleHint(QFont::Monospace);
+    font.setFamily(QStringLiteral("monospace"));
+    spoof_status_->setFont(font);
+    statusLayout->addWidget(spoof_status_, 1);
+    auto* refresh = new QPushButton(u8("刷新伪装预览"));
+    refresh->setObjectName(QStringLiteral("refreshSpoofStatusButton"));
+    statusLayout->addWidget(refresh, 0, Qt::AlignLeft);
+    layout->addWidget(statusBox, 1);
+    connect(refresh, &QPushButton::clicked, this, &SettingsWindow::onRefreshSpoofStatus);
     return wrapScroll(page);
 }
 
@@ -590,6 +616,7 @@ void SettingsWindow::syncFromSession() {
     setChecked(QStringLiteral("identityVaultCheck"), c.features.identity_vault);
     refreshRuntimePreview();
     refreshGatewayStatus();
+    refreshSpoofStatus();
 }
 
 bool SettingsWindow::harvestToSession(QString* error) {
@@ -821,6 +848,41 @@ void SettingsWindow::onRefreshGatewayStatus() {
     refreshGatewayStatus();
 }
 
+QString SettingsWindow::spoofStatusText() const {
+    return spoof_status_ ? spoof_status_->toPlainText() : QString{};
+}
+
+void SettingsWindow::refreshSpoofStatus() {
+    if (!spoof_status_) {
+        return;
+    }
+    const auto previous = session_;
+    QString error;
+    const bool harvested = harvestToSession(&error);
+    const auto values = claudebox::spoof::from_config(session_.config.identity);
+    const auto planned = claudebox::spoof::plan(values, session_.paths.prefix);
+    claudebox::spoof::VerifyResult verified;
+    const bool can_verify =
+        planned.ok && std::filesystem::exists(claudebox::spoof::spoof_env_path(session_.paths.prefix));
+    const claudebox::spoof::VerifyResult* verified_ptr = nullptr;
+    if (can_verify) {
+        verified = claudebox::spoof::verify(values, session_.paths.prefix);
+        verified_ptr = &verified;
+    }
+    spoof_status_->setPlainText(
+        QString::fromStdString(claudebox::spoof::format_status(planned, verified_ptr)));
+    if (!harvested && !error.isEmpty()) {
+        spoof_status_->appendPlainText(QString::fromUtf8("\n表单还未填完：") + error);
+    }
+    if (!harvested) {
+        session_ = previous;
+    }
+}
+
+void SettingsWindow::onRefreshSpoofStatus() {
+    refreshSpoofStatus();
+}
+
 void SettingsWindow::onSave() {
     QString error;
     if (!saveToDisk(&error)) {
@@ -830,9 +892,11 @@ void SettingsWindow::onSave() {
         }
         return;
     }
-    statusBar()->showMessage(u8("已保存盒子配置、身份策略，并更新了展示层。"), 8000);
+    statusBar()->showMessage(
+        u8("已保存盒子配置、身份策略，并更新了展示层和盒子伪装值。"), 8000);
     refreshRuntimePreview();
     refreshGatewayStatus();
+    refreshSpoofStatus();
 }
 
 void SettingsWindow::onReload() {

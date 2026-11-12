@@ -2,6 +2,7 @@
 
 #include "claudebox/config.hpp"
 #include "claudebox/identity.hpp"
+#include "claudebox/spoof.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -341,6 +342,73 @@ private slots:
         QVERIFY(error.contains(QString::fromUtf8("上游")));
         QCOMPARE(QString::fromStdString(read_text(options_.config)),
                  QString::fromStdString(before));
+    }
+
+    void spoofValuesApplyAndRoundTrip() {
+        seedPrefix(uniquePrefix("spoof"));
+        SettingsWindow window(options_);
+        QVERIFY(window.findChild<QPlainTextEdit*>(QStringLiteral("spoofStatusPreview")));
+        QVERIFY(window.findChild<QPushButton*>(QStringLiteral("refreshSpoofStatusButton")));
+        QCOMPARE(window.lineValue(QStringLiteral("timezoneEdit")),
+                 QStringLiteral("America/Los_Angeles"));
+        QCOMPARE(window.lineValue(QStringLiteral("localeEdit")),
+                 QStringLiteral("en_US.UTF-8"));
+
+        QString preview = window.spoofStatusText();
+        QVERIFY2(preview.contains(QString::fromUtf8("盒子内的伪装值")), qPrintable(preview));
+        QVERIFY(preview.contains(QStringLiteral("America/Los_Angeles")));
+        QVERIFY(preview.contains(QString::fromUtf8("不会改宿主")) ||
+                preview.contains(QString::fromUtf8("不会写入宿主")));
+        QVERIFY(!preview.contains(QString::fromUtf8("暴露宿主真实时区")) ||
+                preview.contains(QString::fromUtf8("没有")));
+
+        window.setLineValue(QStringLiteral("timezoneEdit"), QStringLiteral("Europe/Berlin"));
+        window.setLineValue(QStringLiteral("localeEdit"), QStringLiteral("de_DE.UTF-8"));
+        window.setLineValue(QStringLiteral("languageEdit"), QStringLiteral("de_DE"));
+        window.setLineValue(QStringLiteral("electronLangEdit"), QStringLiteral("de-DE"));
+        QString error;
+        QVERIFY2(window.saveToDisk(&error), qPrintable(error));
+        window.refreshSpoofStatus();
+
+        const auto cfg = BoxConfig::load_file(options_.config);
+        QCOMPARE(QString::fromStdString(cfg.identity.timezone),
+                 QStringLiteral("Europe/Berlin"));
+        QCOMPARE(QString::fromStdString(cfg.identity.locale),
+                 QStringLiteral("de_DE.UTF-8"));
+
+        const auto values = claudebox::spoof::from_config(cfg.identity);
+        const auto verified = claudebox::spoof::verify(values, prefix_);
+        QVERIFY2(verified.ok, verified.issues.empty() ? "verify failed"
+                                                      : verified.issues.front().c_str());
+        if (verified.probe.ran) {
+            QCOMPARE(QString::fromStdString(verified.probe.timezone),
+                     QStringLiteral("Europe/Berlin"));
+            QVERIFY(verified.probe.timezone != QStringLiteral("Asia/Tokyo").toStdString());
+        }
+
+        const auto spoof_env = read_text(prefix_ / "env" / "spoof.env");
+        QVERIFY(QString::fromStdString(spoof_env).contains(QStringLiteral("Europe/Berlin")));
+        QVERIFY(!QString::fromStdString(spoof_env).contains(QStringLiteral("America/Los_Angeles")));
+        QVERIFY(QString::fromStdString(spoof_env).contains(QStringLiteral("de_DE.UTF-8")));
+
+        SettingsWindow reloaded(options_);
+        QCOMPARE(reloaded.lineValue(QStringLiteral("timezoneEdit")),
+                 QStringLiteral("Europe/Berlin"));
+        QCOMPARE(reloaded.lineValue(QStringLiteral("localeEdit")),
+                 QStringLiteral("de_DE.UTF-8"));
+        const auto again = reloaded.spoofStatusText();
+        QVERIFY2(again.contains(QStringLiteral("Europe/Berlin")), qPrintable(again));
+        QVERIFY(again.contains(QString::fromUtf8("盒子内的伪装值")));
+        QVERIFY(!again.contains(QStringLiteral("Asia/Tokyo")));
+
+        // Invalid timezone must not save or write a bad spoof.
+        const auto before = read_text(options_.config);
+        reloaded.setLineValue(QStringLiteral("timezoneEdit"), QStringLiteral("Not/AZone"));
+        QVERIFY(!reloaded.saveToDisk(&error));
+        QCOMPARE(QString::fromStdString(read_text(options_.config)),
+                 QString::fromStdString(before));
+        QVERIFY(QString::fromStdString(read_text(prefix_ / "env" / "spoof.env"))
+                    .contains(QStringLiteral("Europe/Berlin")));
     }
 
     void smokeConstructsWithoutCrash() {
