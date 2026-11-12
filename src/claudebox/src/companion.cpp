@@ -673,9 +673,34 @@ InterceptResult install_intercept(const claudebox::config::BoxConfig& config,
         fs::create_directories(result.plan.companion_env.parent_path());
 
         fs::path opener_src = opener_source_script();
+        // A sourced companion.env sets CLAUDE_BOX_OPEN_OAUTH to the already
+        // installed wrapper. Copying that path onto itself throws
+        // "File exists" even with overwrite_existing, which would fail a
+        // second settings save inside a box session. Prefer the packaged
+        // script, and skip the copy when source and destination are the same.
+#ifdef CLAUDEBOX_OPEN_OAUTH_SCRIPT
+        {
+            const fs::path from_cmake(CLAUDEBOX_OPEN_OAUTH_SCRIPT);
+            if (!from_cmake.empty() && fs::exists(from_cmake) && !opener_src.empty()) {
+                std::error_code ec;
+                if (opener_src == result.plan.open_oauth ||
+                    (fs::exists(result.plan.open_oauth) &&
+                     fs::equivalent(opener_src, result.plan.open_oauth, ec))) {
+                    opener_src = from_cmake;
+                }
+            }
+        }
+#endif
         if (!opener_src.empty() && fs::exists(opener_src)) {
-            fs::copy_file(opener_src, result.plan.open_oauth,
-                          fs::copy_options::overwrite_existing);
+            std::error_code same_ec;
+            const bool same_file =
+                fs::exists(result.plan.open_oauth) &&
+                (opener_src == result.plan.open_oauth ||
+                 fs::equivalent(opener_src, result.plan.open_oauth, same_ec));
+            if (!same_file) {
+                fs::copy_file(opener_src, result.plan.open_oauth,
+                              fs::copy_options::overwrite_existing);
+            }
             fs::permissions(result.plan.open_oauth,
                             fs::perms::owner_read | fs::perms::owner_write |
                                 fs::perms::owner_exec | fs::perms::group_read |

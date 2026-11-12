@@ -184,6 +184,7 @@ static int run_cmd(const std::string& cmd, std::string* output) {
 static void clear_engine_env() {
     unsetenv("CLAUDE_BOX_COMPANION_BROWSER");
     unsetenv("CLAUDE_BOX_COMPANION_PROFILE");
+    unsetenv("CLAUDE_BOX_OPEN_OAUTH");
 }
 
 static void test_url_helpers() {
@@ -485,6 +486,16 @@ static void test_settings_save_installs_intercept() {
     const auto session_env = read_text(prefix / "env" / "session.env");
     CHECK(contains(session_env, "companion.env"));
     CHECK(contains(session_env, "TZ=") || contains(read_text(prefix / "env" / "spoof.env"), "TZ="));
+
+    // Re-install after sourcing companion.env (CLAUDE_BOX_OPEN_OAUTH points at
+    // the installed wrapper). Settings save must stay idempotent.
+    setenv("CLAUDE_BOX_OPEN_OAUTH", (prefix / "bin" / "open-oauth-url").string().c_str(), 1);
+    const auto again = install_intercept(session.config, prefix);
+    CHECK(again.ok);
+    session.reload();
+    const auto saved_again = session.save();
+    CHECK(saved_again.ok);
+    unsetenv("CLAUDE_BOX_OPEN_OAUTH");
     fs::remove_all(prefix);
 }
 
