@@ -33,8 +33,9 @@ struct SpoofPlan {
     std::filesystem::path localtime;      // <prefix>/etc/localtime
     std::filesystem::path timezone_file;  // <prefix>/etc/timezone
     std::filesystem::path zoneinfo;       // /usr/share/zoneinfo/<TZ> when present
+    std::filesystem::path icu_timezone_files_dir;  // <prefix>/etc/zoneinfo
     // Always false: this planner never writes the host /etc/localtime,
-    // /etc/timezone, or /etc/profile.d, even when the process is root.
+    // /etc/timezone, host ICU paths, or /etc/profile.d, even when the process is root.
     bool writes_host_etc = false;
 };
 
@@ -69,6 +70,16 @@ std::filesystem::path spoof_env_path(const std::filesystem::path& prefix);
 std::filesystem::path session_env_path(const std::filesystem::path& prefix);
 std::filesystem::path prefix_localtime_path(const std::filesystem::path& prefix);
 std::filesystem::path prefix_timezone_path(const std::filesystem::path& prefix);
+std::filesystem::path prefix_zoneinfo_dir(const std::filesystem::path& prefix);
+
+// Box hostname used for SENTRY_NAME / CLAUDE_BOX_HOSTNAME. Never the host's
+// real hostname: empty values fall back to "claude-box".
+std::string box_hostname(const SpoofValues& values);
+
+// Upsert unique-gateway proxy exports into a prefix env file (session.env /
+// companion.env). No-op when proxy_url is empty. Does not touch host env.
+void upsert_proxy_env(const std::filesystem::path& env_file,
+                      std::string_view proxy_url);
 
 // Normalize locale tags for Intl comparison: en_US.UTF-8 -> en-US.
 std::string locale_language_tag(std::string_view locale);
@@ -80,9 +91,10 @@ std::filesystem::path zoneinfo_path(std::string_view timezone);
 
 SpoofPlan plan(const SpoofValues& values, const std::filesystem::path& prefix);
 
-// Write spoof artifacts into the prefix. Never writes host /etc/localtime,
-// host /etc/timezone, host TZ, or the host locale. Does not invoke
-// apply-spoof.sh, because that script updates /etc when run as root.
+// Write spoof artifacts into the prefix (incl. SENTRY_NAME and
+// ICU_TIMEZONE_FILES_DIR). Never writes host /etc/localtime, host
+// /etc/timezone, host ICU paths, host TZ, or the host locale. Does not
+// invoke apply-spoof.sh, because that script updates /etc when run as root.
 ApplyResult apply(const SpoofValues& values, const std::filesystem::path& prefix);
 ApplyResult apply_config(const claudebox::config::IdentitySpoof& identity,
                          const std::filesystem::path& prefix);
@@ -90,7 +102,8 @@ ApplyResult apply_config(const claudebox::config::IdentitySpoof& identity,
 // Intl.DateTimeFormat-equivalent probe. Uses node when present, with the
 // prefix spoof env (or the supplied values). Does not change the process
 // timezone or the host locale.
-ProbeResult probe_intl(const SpoofValues& values);
+ProbeResult probe_intl(const SpoofValues& values,
+                       const std::filesystem::path& icu_dir = {});
 
 // Check prefix artifacts and the Intl probe against the configured fake
 // values. The host's real timezone must not be required for success.

@@ -114,6 +114,9 @@ static void test_missing_binary_not_started() {
     // start applies spoof into the prefix even when the binary is missing
     CHECK(fs::exists(prefix / "env" / "spoof.env"));
     CHECK(contains(read_text(prefix / "env" / "spoof.env"), "America/Los_Angeles"));
+    CHECK(contains(read_text(prefix / "env" / "spoof.env"), "SENTRY_NAME="));
+    CHECK(contains(read_text(prefix / "env" / "session.env"), "HTTP_PROXY="));
+    CHECK(contains(read_text(prefix / "env" / "session.env"), "http://127.0.0.1:3080"));
     fs::remove_all(prefix);
 }
 

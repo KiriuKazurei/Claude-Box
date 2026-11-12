@@ -108,4 +108,39 @@ fi
 # Host identity: model visible, identifiers hidden, TZ still spoofed
 bash tests/wsl-box/test-host-identity.sh
 
+# start-claude-desktop.sh must refuse to exec when the unique-gateway proxy is missing
+# (same contract as C++ desktop::start).
+refuse_dir="$(mktemp -d "${ROOT}/.run/claude-box-refuse-XXXX")"
+mkdir -p "$refuse_dir/env" "$refuse_dir/bin"
+printf 'export CLAUDE_BOX_PREFIX=%q\nexport TZ=America/Los_Angeles\n' "$refuse_dir" > "$refuse_dir/env/session.env"
+cat > "$refuse_dir/bin/claude-desktop" <<'STUB'
+#!/bin/sh
+echo "STUB_DESKTOP_EXECUTED" >> "${CLAUDE_BOX_PREFIX}/exec.log"
+exit 0
+STUB
+chmod +x "$refuse_dir/bin/claude-desktop"
+set +e
+refuse_out="$(
+  env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy \
+    PATH="$refuse_dir/bin:$PATH" CLAUDE_BOX_PREFIX="$refuse_dir" CLAUDE_BOX_DESKTOP_CMD=claude-desktop \
+    bash src/wsl-box/guest/start-claude-desktop.sh 2>&1
+)"
+refuse_rc=$?
+set -e
+if [[ "$refuse_rc" -eq 0 ]]; then
+  rm -rf "$refuse_dir"
+  fail "start-claude-desktop.sh exited 0 without a proxy"
+fi
+if [[ "$refuse_rc" -eq 127 ]]; then
+  rm -rf "$refuse_dir"
+  fail "start-claude-desktop.sh looked up the binary before refusing a missing proxy"
+fi
+echo "$refuse_out" | grep -qi 'proxy' || { rm -rf "$refuse_dir"; fail "missing-proxy error should mention proxy"; }
+if [[ -f "$refuse_dir/exec.log" ]]; then
+  rm -rf "$refuse_dir"
+  fail "start-claude-desktop.sh exec'd Desktop without a proxy"
+fi
+rm -rf "$refuse_dir"
+pass "start-claude-desktop.sh refuses missing proxy (no exec)"
+
 echo "ALL GREEN (linux framework)"

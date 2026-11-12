@@ -247,6 +247,19 @@ std::string companion_env_body(const CompanionPlan& plan, const fs::path& prefix
         out << "export CLAUDE_BOX_COMPANION_BROWSER="
             << shell_single_quote(plan.engine.string()) << "\n";
     }
+    if (!plan.http_proxy.empty()) {
+        const auto q = shell_single_quote(plan.http_proxy);
+        out << "export HTTP_PROXY=" << q << "\n"
+            << "export HTTPS_PROXY=" << q << "\n"
+            << "export ALL_PROXY=" << q << "\n"
+            << "export http_proxy=" << q << "\n"
+            << "export https_proxy=" << q << "\n"
+            << "export all_proxy=" << q << "\n";
+        const auto nq = shell_single_quote(plan.no_proxy.empty() ? "localhost,127.0.0.1"
+                                                                : plan.no_proxy);
+        out << "export NO_PROXY=" << nq << "\n"
+            << "export no_proxy=" << nq << "\n";
+    }
     out << "case \":${PATH}:\" in\n"
         << "  *\":" << plan.intercept_dir.string() << ":\"*) ;;\n"
         << "  *) export PATH=" << shell_single_quote(plan.intercept_dir.string())
@@ -728,6 +741,9 @@ InterceptResult install_intercept(const claudebox::config::BoxConfig& config,
         }
         upsert_source_line(text, result.plan.companion_env);
         write_file(session, text, false);
+        if (result.plan.proxy_configured && !result.plan.http_proxy.empty()) {
+            claudebox::spoof::upsert_proxy_env(session, result.plan.http_proxy);
+        }
 
         result.ok = true;
         return result;

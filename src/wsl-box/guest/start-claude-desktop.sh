@@ -12,6 +12,15 @@ if [[ -n "${CLAUDE_BOX_PREFIX:-}" && -f "${CLAUDE_BOX_PREFIX}/env/host-model.env
   # shellcheck disable=SC1090
   source "${CLAUDE_BOX_PREFIX}/env/host-model.env"
 fi
+
+# Align with C++ desktop::start: missing unique-gateway proxy => not started,
+# do not exec Desktop (and do not continue into apply-spoof).
+if [[ -z "${HTTP_PROXY:-}${ALL_PROXY:-}" ]]; then
+  echo "error: unique gateway proxy is not configured (HTTP_PROXY/ALL_PROXY)."
+  echo "       Desktop will not be started, because that would bypass the unique gateway."
+  exit 2
+fi
+
 # shellcheck source=/dev/null
 source "$ROOT_DIR/apply-spoof.sh"
 
@@ -34,10 +43,6 @@ if ! command -v "$CMD" >/dev/null 2>&1; then
   echo "error: Desktop binary not found. Run install-claude-desktop.sh first"
   echo "       (cloud: src/wsl-box/linux/Install-ClaudeDesktop.sh — local deb only)."
   exit 127
-fi
-
-if [[ -z "${HTTP_PROXY:-}${ALL_PROXY:-}" ]]; then
-  echo "warn: no HTTP_PROXY/ALL_PROXY — traffic may bypass Claude Box gateway"
 fi
 
 exec "$CMD" "${EXTRA[@]}" "$@"

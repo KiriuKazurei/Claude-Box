@@ -6,6 +6,7 @@
 #include <ctime>
 #include <filesystem>
 #include <fstream>
+#include <unistd.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -177,10 +178,31 @@ static void test_example_config_apply_and_intl() {
     CHECK(contains(spoof_env, "America/Los_Angeles"));
     CHECK(contains(spoof_env, "en_US.UTF-8"));
     CHECK(!contains(spoof_env, "Asia/Tokyo"));
+    CHECK(contains(spoof_env, "SENTRY_NAME="));
+    CHECK(contains(spoof_env, "claude-box"));
+    CHECK(contains(spoof_env, "ICU_TIMEZONE_FILES_DIR="));
+    CHECK(contains(spoof_env, (prefix / "etc" / "zoneinfo").string()));
 
     const auto session = read_text(session_env_path(prefix));
     CHECK(contains(session, "America/Los_Angeles"));
     CHECK(contains(session, "export TZ="));
+    CHECK(contains(session, "SENTRY_NAME="));
+    CHECK(contains(session, "ICU_TIMEZONE_FILES_DIR="));
+    CHECK(contains(session, "claude-box"));
+
+    char hostbuf[256] = {};
+    if (gethostname(hostbuf, sizeof(hostbuf) - 1) == 0 && hostbuf[0] != '\0') {
+        const std::string real_host(hostbuf);
+        if (real_host != "claude-box") {
+            CHECK(!contains(spoof_env, "SENTRY_NAME=\"" + real_host));
+            CHECK(!contains(session, "SENTRY_NAME=\"" + real_host));
+        }
+    }
+
+    const auto icu_dir = prefix / "etc" / "zoneinfo";
+    CHECK(fs::exists(icu_dir / "America" / "Los_Angeles") ||
+          fs::is_symlink(icu_dir / "America" / "Los_Angeles"));
+    CHECK(!fs::exists(icu_dir / "Asia" / "Tokyo"));
 
     const auto verified = verify(values, prefix);
     CHECK(verified.ok);
@@ -266,6 +288,13 @@ static void test_change_reapply() {
     CHECK(contains(spoof_env, "Europe/Berlin"));
     CHECK(!contains(spoof_env, "America/Los_Angeles"));
     CHECK(contains(spoof_env, "de_DE.UTF-8"));
+    CHECK(contains(spoof_env, "SENTRY_NAME="));
+    CHECK(contains(spoof_env, "lab-box"));
+    CHECK(contains(read_text(session_env_path(prefix)), "SENTRY_NAME="));
+    CHECK(contains(read_text(session_env_path(prefix)), "lab-box"));
+    CHECK(fs::exists(prefix / "etc" / "zoneinfo" / "Europe" / "Berlin") ||
+          fs::is_symlink(prefix / "etc" / "zoneinfo" / "Europe" / "Berlin"));
+    CHECK(!fs::exists(prefix / "etc" / "zoneinfo" / "Asia" / "Tokyo"));
 
     const auto session = read_text(session_env_path(prefix));
     CHECK(contains(session, "Europe/Berlin"));

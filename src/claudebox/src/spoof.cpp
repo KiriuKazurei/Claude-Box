@@ -170,13 +170,52 @@ fs::path zoneinfo_root() {
     return fs::path("/usr/share/zoneinfo");
 }
 
-std::string spoof_env_body(const SpoofValues& values) {
+std::string spoof_env_body(const SpoofValues& values, const fs::path& prefix,
+                           const std::string& sentry_name) {
     std::ostringstream out;
     out << export_line("TZ", values.timezone) << "\n";
     out << export_line("LANG", values.locale) << "\n";
     out << export_line("LC_ALL", values.locale) << "\n";
     out << export_line("LANGUAGE", values.language) << "\n";
+    out << export_line("SENTRY_NAME", sentry_name) << "\n";
+    out << export_line("CLAUDE_BOX_HOSTNAME", sentry_name) << "\n";
+    if (!prefix.empty()) {
+        out << export_line("ICU_TIMEZONE_FILES_DIR",
+                           (prefix / "etc" / "zoneinfo").string())
+            << "\n";
+    }
     return out.str();
+}
+
+void install_prefix_zoneinfo(const fs::path& dest_root, const fs::path& src_zone,
+                             std::string_view tz) {
+    // Recreate a minimal prefix-local tree: only the spoof timezone (and UTC
+    // if present). Do not copy the host's other zones (e.g. Asia/Tokyo).
+    std::error_code ec;
+    fs::remove_all(dest_root, ec);
+    auto install = [&](const fs::path& src, const std::string& rel) {
+        if (rel.empty() || !fs::exists(src)) {
+            return;
+        }
+        const auto dest = dest_root / rel;
+        fs::create_directories(dest.parent_path());
+        if (fs::exists(dest) || fs::is_symlink(dest)) {
+            fs::remove(dest, ec);
+        }
+        std::error_code canon_ec;
+        const auto canon = fs::canonical(src, canon_ec);
+        const auto from = canon_ec ? src : canon;
+        fs::copy_file(from, dest, fs::copy_options::overwrite_existing, ec);
+        if (ec) {
+            ec.clear();
+            fs::create_symlink(from, dest, ec);
+        }
+    };
+    install(src_zone, std::string(tz));
+    const auto utc = fs::path("/usr/share/zoneinfo/UTC");
+    if (fs::exists(utc) && std::string(tz) != "UTC") {
+        install(utc, "UTC");
+    }
 }
 
 std::string which_node() {
@@ -216,6 +255,37 @@ SpoofValues from_config(const claudebox::config::IdentitySpoof& identity) {
     v.electron_lang = identity.electron_lang;
     return v;
 }
+
+std::string box_hostname(const SpoofValues& values) {
+    const std::string h = trim(values.hostname);
+    return h.empty() ? std::string("claude-box") : h;
+}
+
+std::filesystem::path prefix_zoneinfo_dir(const std::filesystem::path& prefix) {
+    return prefix / "etc" / "zoneinfo";
+}
+
+void upsert_proxy_env(const std::filesystem::path& env_file, std::string_view proxy_url) {
+    const std::string proxy = trim(std::string(proxy_url));
+    if (proxy.empty() || env_file.empty()) {
+        return;
+    }
+    fs::create_directories(env_file.parent_path());
+    std::string text;
+    if (fs::exists(env_file)) {
+        text = read_file(env_file);
+    }
+    upsert_export(text, "HTTP_PROXY", proxy);
+    upsert_export(text, "HTTPS_PROXY", proxy);
+    upsert_export(text, "ALL_PROXY", proxy);
+    upsert_export(text, "http_proxy", proxy);
+    upsert_export(text, "https_proxy", proxy);
+    upsert_export(text, "all_proxy", proxy);
+    upsert_export(text, "NO_PROXY", "localhost,127.0.0.1");
+    upsert_export(text, "no_proxy", "localhost,127.0.0.1");
+    write_file(env_file, text);
+}
+
 
 std::filesystem::path spoof_env_path(const std::filesystem::path& prefix) {
     return prefix / "env" / "spoof.env";
@@ -293,6 +363,7 @@ SpoofPlan plan(const SpoofValues& values, const std::filesystem::path& prefix) {
     p.etc_dir = prefix / "etc";
     p.localtime = prefix_localtime_path(prefix);
     p.timezone_file = prefix_timezone_path(prefix);
+    p.icu_timezone_files_dir = prefix_zoneinfo_dir(prefix);
     p.writes_host_etc = false;
 
     if (prefix.empty()) {
@@ -331,7 +402,8 @@ ApplyResult apply(const SpoofValues& values, const std::filesystem::path& prefix
         fs::create_directories(p.spoof_env.parent_path());
         fs::create_directories(p.etc_dir);
 
-        write_file(p.spoof_env, spoof_env_body(values));
+        const std::string sentry = box_hostname(values);
+        write_file(p.spoof_env, spoof_env_body(values, prefix, sentry));
 
         std::string session;
         if (fs::exists(p.session_env)) {
@@ -347,9 +419,9 @@ ApplyResult apply(const SpoofValues& values, const std::filesystem::path& prefix
         if (!values.electron_lang.empty()) {
             upsert_export(session, "CLAUDE_BOX_ELECTRON_LANG", values.electron_lang);
         }
-        if (!values.hostname.empty()) {
-            upsert_export(session, "CLAUDE_BOX_HOSTNAME", values.hostname);
-        }
+        upsert_export(session, "CLAUDE_BOX_HOSTNAME", sentry);
+        upsert_export(session, "SENTRY_NAME", sentry);
+        upsert_export(session, "ICU_TIMEZONE_FILES_DIR", p.icu_timezone_files_dir.string());
         write_file(p.session_env, session);
 
         write_file(p.timezone_file, trim(values.timezone) + "\n");
@@ -365,6 +437,11 @@ ApplyResult apply(const SpoofValues& values, const std::filesystem::path& prefix
             }
         }
 
+        if (!p.icu_timezone_files_dir.empty()) {
+            install_prefix_zoneinfo(p.icu_timezone_files_dir, p.zoneinfo,
+                                    trim(values.timezone));
+        }
+
         result.ok = true;
         return result;
     } catch (const std::exception& ex) {
@@ -378,7 +455,7 @@ ApplyResult apply_config(const claudebox::config::IdentitySpoof& identity,
     return apply(from_config(identity), prefix);
 }
 
-ProbeResult probe_intl(const SpoofValues& values) {
+ProbeResult probe_intl(const SpoofValues& values, const std::filesystem::path& icu_dir) {
     ProbeResult probe;
     const std::string node = which_node();
     if (node.empty()) {
@@ -395,8 +472,13 @@ ProbeResult probe_intl(const SpoofValues& values) {
         << " LANG=\"" << shell_quote(values.locale) << "\""
         << " LC_ALL=\"" << shell_quote(values.locale) << "\""
         << " LANGUAGE=\"" << shell_quote(values.language) << "\""
-        << " HOME=/tmp "
-        << node
+        << " SENTRY_NAME=\"" << shell_quote(box_hostname(values)) << "\""
+        << " CLAUDE_BOX_HOSTNAME=\"" << shell_quote(box_hostname(values)) << "\""
+        << " HOME=/tmp ";
+    if (!icu_dir.empty()) {
+        cmd << " ICU_TIMEZONE_FILES_DIR=" << shell_quote(icu_dir.string()) << " ";
+    }
+    cmd << node
         << " -e 'const o=Intl.DateTimeFormat().resolvedOptions();"
            "console.log(\"Intl timeZone=\"+o.timeZone+\" locale=\"+o.locale)'";
 
@@ -494,14 +576,21 @@ VerifyResult verify(const SpoofValues& values, const std::filesystem::path& pref
         }
     };
 
+    const std::string sentry = box_hostname(values);
     require_export(p.spoof_env, "TZ", values.timezone);
     require_export(p.spoof_env, "LANG", values.locale);
     require_export(p.spoof_env, "LC_ALL", values.locale);
     require_export(p.spoof_env, "LANGUAGE", values.language);
+    require_export(p.spoof_env, "SENTRY_NAME", sentry);
+    require_export(p.spoof_env, "CLAUDE_BOX_HOSTNAME", sentry);
+    require_export(p.spoof_env, "ICU_TIMEZONE_FILES_DIR", p.icu_timezone_files_dir.string());
     require_export(p.session_env, "TZ", values.timezone);
     require_export(p.session_env, "LANG", values.locale);
     require_export(p.session_env, "LC_ALL", values.locale);
     require_export(p.session_env, "LANGUAGE", values.language);
+    require_export(p.session_env, "SENTRY_NAME", sentry);
+    require_export(p.session_env, "CLAUDE_BOX_HOSTNAME", sentry);
+    require_export(p.session_env, "ICU_TIMEZONE_FILES_DIR", p.icu_timezone_files_dir.string());
 
     if (!fs::exists(p.timezone_file)) {
         result.issues.push_back("missing " + p.timezone_file.string());
@@ -528,8 +617,15 @@ VerifyResult verify(const SpoofValues& values, const std::filesystem::path& pref
         }
     }
 
+    if (!p.icu_timezone_files_dir.empty()) {
+        const auto tz_file = p.icu_timezone_files_dir / trim(values.timezone);
+        if (!fs::exists(tz_file) && !fs::is_symlink(tz_file)) {
+            result.issues.push_back("missing prefix ICU zoneinfo file " + tz_file.string());
+        }
+    }
+
     // Never treat the host /etc/localtime as the applied spoof target.
-    result.probe = probe_intl(values);
+    result.probe = probe_intl(values, p.icu_timezone_files_dir);
     for (const auto& err : result.probe.errors) {
         result.issues.push_back(err);
     }

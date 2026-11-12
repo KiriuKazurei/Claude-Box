@@ -419,9 +419,16 @@ static void test_intercept_and_shell_opener() {
     const auto companion_env = read_text(prefix / "env" / "companion.env");
     CHECK(contains(companion_env, (prefix / "bin" / "xdg-open").string()));
     CHECK(contains(companion_env, "BROWSER="));
+    CHECK(contains(companion_env, "HTTP_PROXY="));
+    CHECK(contains(companion_env, "HTTPS_PROXY="));
+    CHECK(contains(companion_env, "http://127.0.0.1:3080"));
+    CHECK(contains(companion_env, "NO_PROXY="));
+    CHECK(contains(companion_env, "localhost,127.0.0.1"));
     const auto session = read_text(prefix / "env" / "session.env");
     CHECK(contains(session, "companion.env"));
     CHECK(!contains(session, "BROWSER=xdg-open"));
+    CHECK(contains(session, "HTTP_PROXY="));
+    CHECK(contains(session, "http://127.0.0.1:3080"));
 
     // Missing engine via the repo script (smoke contract).
     std::string missing_out;

@@ -35,6 +35,11 @@ export TZ="$TZ_VALUE"
 export LANG="$LOCALE_VALUE"
 export LC_ALL="$LOCALE_VALUE"
 export LANGUAGE="$LANGUAGE_VALUE"
+# Box hostname only — never the host's real hostname (do not call hostname(1)).
+SENTRY_NAME="${SENTRY_NAME:-${CLAUDE_BOX_HOSTNAME:-claude-box}}"
+CLAUDE_BOX_HOSTNAME="${CLAUDE_BOX_HOSTNAME:-$SENTRY_NAME}"
+export SENTRY_NAME
+export CLAUDE_BOX_HOSTNAME
 
 # Persist for login shells when root
 if [[ "$(id -u)" -eq 0 ]]; then
@@ -49,12 +54,22 @@ fi
 
 # Non-root / cloud prefix: write spoof.env for later source (idempotent)
 if [[ -n "$PREFIX" ]]; then
-  mkdir -p "$PREFIX/env"
+  mkdir -p "$PREFIX/env" "$PREFIX/etc/zoneinfo"
+  ICU_TIMEZONE_FILES_DIR="${ICU_TIMEZONE_FILES_DIR:-$PREFIX/etc/zoneinfo}"
+  export ICU_TIMEZONE_FILES_DIR
+  if [[ -e "/usr/share/zoneinfo/${TZ_VALUE}" ]]; then
+    mkdir -p "$ICU_TIMEZONE_FILES_DIR/$(dirname "$TZ_VALUE")"
+    # Copy only the spoof timezone; do not mirror the host's other zones.
+    cp -fL "/usr/share/zoneinfo/${TZ_VALUE}" "$ICU_TIMEZONE_FILES_DIR/${TZ_VALUE}" 2>/dev/null       || cp -f "/usr/share/zoneinfo/${TZ_VALUE}" "$ICU_TIMEZONE_FILES_DIR/${TZ_VALUE}"
+  fi
   cat > "$PREFIX/env/spoof.env" << INNER
 export TZ="$TZ_VALUE"
 export LANG="$LOCALE_VALUE"
 export LC_ALL="$LOCALE_VALUE"
 export LANGUAGE="$LANGUAGE_VALUE"
+export SENTRY_NAME="$SENTRY_NAME"
+export CLAUDE_BOX_HOSTNAME="$CLAUDE_BOX_HOSTNAME"
+export ICU_TIMEZONE_FILES_DIR="$ICU_TIMEZONE_FILES_DIR"
 INNER
   echo "[claude-box] wrote $PREFIX/env/spoof.env"
 fi

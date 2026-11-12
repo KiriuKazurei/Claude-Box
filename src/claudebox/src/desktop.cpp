@@ -176,6 +176,9 @@ StartResult start(const claudebox::config::BoxConfig& config,
             return result;
         }
         result.plan = plan(config, prefix);
+        if (result.plan.proxy_configured && !result.plan.http_proxy.empty()) {
+            claudebox::spoof::upsert_proxy_env(result.plan.session_env, result.plan.http_proxy);
+        }
         if (!result.plan.binary_found) {
             result.ok = true;  // honest status, not a pretend success
             result.error = result.plan.errors.empty()
