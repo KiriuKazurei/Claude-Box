@@ -40,7 +40,8 @@ target_link_libraries(test_settings PRIVATE claudebox_identity Qt6::Widgets Qt6:
 target_compile_options(test_settings PRIVATE -Wall -Wextra -Wpedantic -Werror)
 target_compile_definitions(test_settings PRIVATE
     CLAUDEBOX_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../tests/wsl-box/fixtures"
-    CLAUDEBOX_EXAMPLE_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../wsl-box/config/wsl-box.example.yaml")
+    CLAUDEBOX_EXAMPLE_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../wsl-box/config/wsl-box.example.yaml"
+    CLAUDEBOX_GATEWAY_SAMPLE="${CMAKE_CURRENT_SOURCE_DIR}/../ClaudeBox.Gateway/samples/gateway.log.example.jsonl")
 
 enable_testing()
 add_test(NAME settings_ui COMMAND test_settings)

@@ -28,11 +28,11 @@ $distro = Get-YamlScalar $raw 'distro_name'; if (-not $distro) { $distro = 'Clau
 $dirs = @()
 $lines = $raw -split "`n"
 for ($i = 0; $i -lt $lines.Count; $i++) {
-    if ($lines[$i] -match '^\s*-\s*host_path:\s*[""']?([^""'#]+)') {
+    if ($lines[$i] -match '^\s*-\s*host_path:\s*["'']?([^"''#]+)') {
         $hp = $Matches[1].Trim()
         $gp = $null; $ro = $false
         for ($j = $i + 1; $j -lt [Math]::Min($i + 6, $lines.Count); $j++) {
-            if ($lines[$j] -match '^\s*guest_path:\s*[""']?([^""'#]+)') { $gp = $Matches[1].Trim() }
+            if ($lines[$j] -match '^\s*guest_path:\s*["'']?([^"''#]+)') { $gp = $Matches[1].Trim() }
             if ($lines[$j] -match '^\s*read_only:\s*true') { $ro = $true }
             if ($lines[$j] -match '^\s*-\s*host_path:') { break }
         }

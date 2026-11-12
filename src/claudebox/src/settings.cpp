@@ -1,6 +1,7 @@
 #include "claudebox/settings.hpp"
 #include "claudebox/collect.hpp"
 #include "claudebox/mount.hpp"
+#include "claudebox/gateway.hpp"
 
 
 #include <stdexcept>
@@ -113,6 +114,17 @@ SaveResult Session::save() {
             for (size_t i = 1; i < mount_plan.errors.size(); ++i) {
                 result.error.append("\n");
                 result.error.append(mount_plan.errors[i]);
+            }
+            return result;
+        }
+        const auto gateway = claudebox::gateway::validate(config, paths.prefix);
+        if (!gateway.ok) {
+            result.error = gateway.errors.empty()
+                               ? "gateway configuration was rejected"
+                               : gateway.errors.front();
+            for (size_t i = 1; i < gateway.errors.size(); ++i) {
+                result.error.append("\n");
+                result.error.append(gateway.errors[i]);
             }
             return result;
         }

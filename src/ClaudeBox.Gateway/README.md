@@ -84,6 +84,12 @@ Import-Module .\src\ClaudeBox.Gateway\ClaudeBox.Gateway.psd1
 pwsh -File tests/Test-Structure.ps1
 ```
 
+设置页与 C++ 核心（`claudebox::gateway`，P6）复用本模块的合同：上游 HTTP/SOCKS5、gost `-L`/`-F` 中继计划、JSONL 字段、以及 `Test-ClaudeBoxGatewayHostBlocked` 的后缀匹配。控件负责配置与状态预览；空日志路径在盒子前缀下解析为 `var/logs/gateway.jsonl`，而不是本机 `%LOCALAPPDATA%`。路径级拦截（例如 `api.anthropic.com/api/event_logging`）由 C++ 匹配器额外支持，避免把整个 `api.anthropic.com` 主 API 一票否决。本仓库的 C++ 路径**不会**重写或替代 gost，也**不会**在云电脑上启动 Win11 网关进程。
+
+```bash
+bash tests/claudebox/test-p6-gate.sh
+```
+
 ## 与 Clash TUN
 
 访客 → 盒子网关 → Clash **HTTP/SOCKS 口**。宿主开 TUN 只影响宿主其它应用，**不能**替代盒子强制网关。

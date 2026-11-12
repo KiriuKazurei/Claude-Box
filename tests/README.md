@@ -53,3 +53,10 @@ bash tests/claudebox/test-p4-gate.sh
 ```bash
 bash tests/claudebox/test-p4-p5-gate.sh
 ```
+
+`claudebox/test-p6-gate.sh` — P1 到 P6 完整门禁：复用 P4+P5 门禁，再跑唯一网关的中继计划、blocklist、JSONL、上游 / 日志路径往返，以及设置页状态预览。若本机有 `pwsh`，还会跑 `tests/Test-Structure.ps1`（既有 ClaudeBox.Gateway 结构与日志占位）。控件只做配置与状态；不在云电脑上启动 gost。
+
+```bash
+bash tests/claudebox/test-p6-gate.sh
+```
+

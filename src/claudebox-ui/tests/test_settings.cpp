@@ -5,6 +5,7 @@
 
 #include <QApplication>
 #include <QCheckBox>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSignalSpy>
 #include <QtTest>
@@ -26,6 +27,9 @@ using claudebox::identity::field_mode_name;
 #ifndef CLAUDEBOX_FIXTURE_DIR
 #define CLAUDEBOX_FIXTURE_DIR ""
 #endif
+#ifndef CLAUDEBOX_GATEWAY_SAMPLE
+#define CLAUDEBOX_GATEWAY_SAMPLE ""
+#endif
 
 static fs::path example_config() {
     fs::path from_cmake(CLAUDEBOX_EXAMPLE_CONFIG);
@@ -41,6 +45,14 @@ static fs::path fixture_inventory() {
         return from_cmake / "host-inventory.raw.yaml";
     }
     return fs::path("tests/wsl-box/fixtures/host-inventory.raw.yaml");
+}
+
+static fs::path sample_gateway_log() {
+    fs::path from_cmake(CLAUDEBOX_GATEWAY_SAMPLE);
+    if (!from_cmake.empty()) {
+        return from_cmake;
+    }
+    return fs::path("src/ClaudeBox.Gateway/samples/gateway.log.example.jsonl");
 }
 
 static std::string read_text(const fs::path& path) {
@@ -257,6 +269,78 @@ private slots:
         window.refreshRuntimePreview();
         QVERIFY(window.runtimePreview().contains(QString::fromUtf8("不会调用 wsl.exe")));
         QVERIFY(window.runtimePreview().contains(QString::fromUtf8("校验通过")));
+    }
+
+    void gatewayStatusAndUpstreamRoundTrip() {
+        seedPrefix(uniquePrefix("gateway"));
+        const auto default_log = prefix_ / "var" / "logs" / "gateway.jsonl";
+        fs::create_directories(default_log.parent_path());
+        fs::copy_file(sample_gateway_log(), default_log);
+
+        SettingsWindow window(options_);
+        QVERIFY(window.findChild<QPlainTextEdit*>(QStringLiteral("gatewayStatusPreview")));
+        QVERIFY(window.findChild<QPushButton*>(QStringLiteral("refreshGatewayStatusButton")));
+        QCOMPARE(window.lineValue(QStringLiteral("upstreamHttpEdit")),
+                 QStringLiteral("http://127.0.0.1:7890"));
+        QCOMPARE(window.lineValue(QStringLiteral("loggingPathEdit")), QString());
+
+        QString status = window.gatewayStatusText();
+        QVERIFY2(status.contains(QString::fromUtf8("已配置")), qPrintable(status));
+        QVERIFY(status.contains(QStringLiteral("http://127.0.0.1:7890")));
+        QVERIFY(status.contains(QStringLiteral("socks5://127.0.0.1:7891")));
+        QVERIFY(status.contains(QStringLiteral("gost -L http://0.0.0.0:3080")));
+        QVERIFY(status.contains(QString::fromUtf8("未启动 gost")));
+        QVERIFY(status.contains(QString::fromStdString(default_log.string())));
+        QVERIFY(status.contains(QString::fromUtf8("存在")));
+        QVERIFY(status.contains(QStringLiteral("api.anthropic.com")));
+        QVERIFY(status.contains(QStringLiteral("www.google-analytics.com")));
+        QVERIFY(status.contains(QStringLiteral("deny")));
+
+        const auto alt_log = prefix_ / "var" / "alt-gateway.jsonl";
+        fs::copy_file(sample_gateway_log(), alt_log);
+        window.setLineValue(QStringLiteral("upstreamHttpEdit"),
+                            QStringLiteral("http://127.0.0.1:18080"));
+        window.setLineValue(QStringLiteral("upstreamSocksEdit"),
+                            QStringLiteral("socks5://127.0.0.1:18081"));
+        window.setLineValue(QStringLiteral("loggingPathEdit"),
+                            QString::fromStdString(alt_log.string()));
+        window.refreshGatewayStatus();
+        status = window.gatewayStatusText();
+        QVERIFY(status.contains(QStringLiteral("http://127.0.0.1:18080")));
+        QVERIFY(status.contains(QString::fromStdString(alt_log.string())));
+        QVERIFY(status.contains(QStringLiteral("gost -L http://0.0.0.0:3080 -F http://127.0.0.1:18080")));
+
+        QString error;
+        QVERIFY2(window.saveToDisk(&error), qPrintable(error));
+
+        const auto cfg = BoxConfig::load_file(options_.config);
+        QCOMPARE(QString::fromStdString(cfg.gateway.upstream_http),
+                 QStringLiteral("http://127.0.0.1:18080"));
+        QCOMPARE(QString::fromStdString(cfg.gateway.upstream_socks5),
+                 QStringLiteral("socks5://127.0.0.1:18081"));
+        QCOMPARE(QString::fromStdString(cfg.gateway.logging.path),
+                 QString::fromStdString(alt_log.string()));
+
+        SettingsWindow reloaded(options_);
+        QCOMPARE(reloaded.lineValue(QStringLiteral("upstreamHttpEdit")),
+                 QStringLiteral("http://127.0.0.1:18080"));
+        QCOMPARE(reloaded.lineValue(QStringLiteral("upstreamSocksEdit")),
+                 QStringLiteral("socks5://127.0.0.1:18081"));
+        QCOMPARE(reloaded.lineValue(QStringLiteral("loggingPathEdit")),
+                 QString::fromStdString(alt_log.string()));
+        const auto again = reloaded.gatewayStatusText();
+        QVERIFY2(again.contains(QStringLiteral("http://127.0.0.1:18080")), qPrintable(again));
+        QVERIFY(again.contains(QString::fromStdString(alt_log.string())));
+        QVERIFY(again.contains(QStringLiteral("api.anthropic.com")));
+        QVERIFY(again.contains(QString::fromUtf8("已配置")));
+
+        const auto before = read_text(options_.config);
+        reloaded.setLineValue(QStringLiteral("upstreamHttpEdit"), QString());
+        reloaded.setLineValue(QStringLiteral("upstreamSocksEdit"), QString());
+        QVERIFY(!reloaded.saveToDisk(&error));
+        QVERIFY(error.contains(QString::fromUtf8("上游")));
+        QCOMPARE(QString::fromStdString(read_text(options_.config)),
+                 QString::fromStdString(before));
     }
 
     void smokeConstructsWithoutCrash() {

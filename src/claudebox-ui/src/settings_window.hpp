@@ -42,6 +42,9 @@ public:
     QString runtimePreview() const;
     void refreshRuntimePreview();
 
+    QString gatewayStatusText() const;
+    void refreshGatewayStatus();
+
     void setLineValue(const QString& object_name, const QString& value);
     QString lineValue(const QString& object_name) const;
     void setChecked(const QString& object_name, bool checked);
@@ -60,6 +63,7 @@ private slots:
     void onRemoveBlocklistItem();
     void onAddExtraArg();
     void onRemoveExtraArg();
+    void onRefreshGatewayStatus();
 
 private:
     void buildUi();
@@ -87,4 +91,5 @@ private:
     QLineEdit* extra_args_edit_ = nullptr;
     QLabel* status_label_ = nullptr;
     QPlainTextEdit* runtime_preview_ = nullptr;
+    QPlainTextEdit* gateway_status_ = nullptr;
 };

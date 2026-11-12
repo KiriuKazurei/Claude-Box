@@ -106,6 +106,7 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
   - Datadog RUM `browser-intake-*.datadoghq.*` / `/api/v2/rum`
   - `api.anthropic.com` 的 `/api/event_logging`（路径级；勿误杀主 API——优先用代理 ACL / SNI 规则精细化）
 - 可选：发行版 `nftables` 禁止非代理出网（强化版，W1+）。
+- 云电脑上的 C++ 核心（`claudebox::gateway`）与设置页共用同一套校验 / 中继计划 / JSONL 状态：空日志路径落在盒子前缀 `var/logs/gateway.jsonl`，不使用宿主 `%LOCALAPPDATA%`。这是 dry-run，不启动 gost，也不绑定 Win11 网卡。Win11 上的实际中继启动仍走 `ClaudeBox.Gateway`。
 
 ### 可选 · 本机 IP 波动杀进程（默认关 · 已知有效）
 

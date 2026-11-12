@@ -65,3 +65,13 @@ bash tests/claudebox/test-p4-gate.sh
 ```bash
 bash tests/claudebox/test-p4-p5-gate.sh
 ```
+
+## 唯一网关（P6）
+
+`claudebox/gateway.hpp` 根据已加载的盒子配置和前缀生成 dry-run 中继计划、校验上游、按 `ClaudeBox.Gateway` 的后缀规则匹配 blocklist，并读写 JSONL 连接日志。空日志路径解析为 `<prefix>/var/logs/gateway.jsonl`，在这台 Linux 云电脑上不会落到宿主 `%LOCALAPPDATA%`。本库不启动 gost，也不绑定端口；Win11 上的进程启停仍由 `src/ClaudeBox.Gateway/` 负责。
+
+路径级规则（如 `api.anthropic.com/api/event_logging`）只拦该路径，不会把 `api.anthropic.com` 的正常对话接口一票否决。默认示例名单仍是 Sentry / Datadog 的主机后缀。
+
+```bash
+bash tests/claudebox/test-p6-gate.sh
+```

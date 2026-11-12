@@ -27,7 +27,7 @@ spec:
       - browser-intake-us5-datadoghq.com
     logging:
       enabled: true
-      path: ""   # 空 = %LOCALAPPDATA%\ClaudeBox\logs\wsl-gateway.jsonl
+      path: ""   # 空：C++ / 设置页解析为盒子前缀 var/logs/gateway.jsonl；Win11 上的 ClaudeBox.Gateway 仍可用 LocalAppData 默认路径
 
   # 只挂这些宿主目录；禁止写 C:\ 根或整棵 Users
   visible_dirs:

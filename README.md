@@ -37,8 +37,10 @@
 src/wsl-box/             # ★ 当前主轨：host PowerShell + guest bash
 src/cbox/                # 后备：Rust 自建容器骨架
 src/ClaudeBox.Gateway/   # 网关（可复用到 WSL）
-src/ClaudeBox.Control/   # 旧 HV 控件（参考）
+src/ClaudeBox.Control/   # 旧 HV 控件（参考；M4 Start-ClaudeBoxControlUi 仍可 -SelfCheck）
 src/ClaudeBox.Guest/     # 旧访客脚本（参考）
+src/claudebox/           # C++ 核心（身份 / 挂载 / 网关计划）
+src/claudebox-ui/        # 当前 C++/Qt 设置页
 config/                  # 旧 HV/container 配置示例
 docs/
 ```

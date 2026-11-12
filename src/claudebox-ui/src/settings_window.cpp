@@ -2,6 +2,7 @@
 
 #include "claudebox/identity.hpp"
 #include "claudebox/mount.hpp"
+#include "claudebox/gateway.hpp"
 
 #include <algorithm>
 
@@ -209,7 +210,10 @@ QWidget* SettingsWindow::buildGatewayPage() {
     auto* page = new QWidget;
     auto* layout = new QVBoxLayout(page);
     layout->addWidget(noteLabel(
-        u8("网关配置。本页只负责读写这些字段；唯一网关运行时接线属于后续模块。")));
+        u8("配置唯一网关的上游、拦截名单和 JSONL 日志。保存只更新盒子配置；"
+           "本页可以预览中继计划和最近日志，但不会在这台云电脑上启动 gost，"
+           "也不会绑定 Win11 网卡。gost 仍由现有 ClaudeBox.Gateway 模块在 "
+           "Win11 上启动。")));
     auto* form = new QFormLayout;
     form->addRow(u8("宿主地址"), namedEdit(QStringLiteral("gatewayHostEdit")));
     auto* port = new QSpinBox;
@@ -243,12 +247,32 @@ QWidget* SettingsWindow::buildGatewayPage() {
     enabled->setObjectName(QStringLiteral("loggingEnabledCheck"));
     logForm->addRow(enabled);
     logForm->addRow(u8("日志路径"), namedEdit(QStringLiteral("loggingPathEdit"),
-                                         u8("空 = 宿主默认日志路径")));
+                                         u8("空 = 盒子前缀下 var/logs/gateway.jsonl")));
     layout->addWidget(logBox);
-    layout->addStretch(1);
+
+    auto* statusBox = new QGroupBox(u8("状态与预览"));
+    auto* statusLayout = new QVBoxLayout(statusBox);
+    statusLayout->addWidget(noteLabel(
+        u8("根据当前表单生成 dry-run 中继计划，并读取本地 JSONL 的最近活动。"
+           "刷新可对着夹具或临时前缀工作，不会探测真实上游，也不会启动进程。")));
+    gateway_status_ = new QPlainTextEdit;
+    gateway_status_->setObjectName(QStringLiteral("gatewayStatusPreview"));
+    gateway_status_->setReadOnly(true);
+    gateway_status_->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+    gateway_status_->setMinimumHeight(220);
+    auto gwFont = gateway_status_->font();
+    gwFont.setStyleHint(QFont::Monospace);
+    gwFont.setFamily(QStringLiteral("monospace"));
+    gateway_status_->setFont(gwFont);
+    statusLayout->addWidget(gateway_status_, 1);
+    auto* refreshGw = new QPushButton(u8("刷新状态"));
+    refreshGw->setObjectName(QStringLiteral("refreshGatewayStatusButton"));
+    statusLayout->addWidget(refreshGw, 0, Qt::AlignLeft);
+    layout->addWidget(statusBox, 1);
 
     connect(addBl, &QPushButton::clicked, this, &SettingsWindow::onAddBlocklistItem);
     connect(delBl, &QPushButton::clicked, this, &SettingsWindow::onRemoveBlocklistItem);
+    connect(refreshGw, &QPushButton::clicked, this, &SettingsWindow::onRefreshGatewayStatus);
     return wrapScroll(page);
 }
 
@@ -565,6 +589,7 @@ void SettingsWindow::syncFromSession() {
                c.features.oauth_open_in_fingerprint_browser);
     setChecked(QStringLiteral("identityVaultCheck"), c.features.identity_vault);
     refreshRuntimePreview();
+    refreshGatewayStatus();
 }
 
 bool SettingsWindow::harvestToSession(QString* error) {
@@ -771,6 +796,31 @@ void SettingsWindow::refreshRuntimePreview() {
     }
 }
 
+QString SettingsWindow::gatewayStatusText() const {
+    return gateway_status_ ? gateway_status_->toPlainText() : QString{};
+}
+
+void SettingsWindow::refreshGatewayStatus() {
+    if (!gateway_status_) {
+        return;
+    }
+    const auto previous = session_;
+    QString error;
+    const bool harvested = harvestToSession(&error);
+    const auto st = claudebox::gateway::status(session_.config, session_.paths.prefix);
+    gateway_status_->setPlainText(QString::fromStdString(claudebox::gateway::format_status(st)));
+    if (!harvested && !error.isEmpty()) {
+        gateway_status_->appendPlainText(QString::fromUtf8("\n表单还未填完：") + error);
+    }
+    if (!harvested) {
+        session_ = previous;
+    }
+}
+
+void SettingsWindow::onRefreshGatewayStatus() {
+    refreshGatewayStatus();
+}
+
 void SettingsWindow::onSave() {
     QString error;
     if (!saveToDisk(&error)) {
@@ -781,6 +831,8 @@ void SettingsWindow::onSave() {
         return;
     }
     statusBar()->showMessage(u8("已保存盒子配置、身份策略，并更新了展示层。"), 8000);
+    refreshRuntimePreview();
+    refreshGatewayStatus();
 }
 
 void SettingsWindow::onReload() {

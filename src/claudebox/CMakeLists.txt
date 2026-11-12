@@ -11,6 +11,7 @@ add_library(claudebox_identity
     src/config.cpp
     src/settings.cpp
     src/mount.cpp
+    src/gateway.cpp
 )
 target_include_directories(claudebox_identity PUBLIC include)
 target_compile_options(claudebox_identity PRIVATE -Wall -Wextra -Wpedantic -Werror)
@@ -50,3 +51,11 @@ target_compile_options(test_mount PRIVATE -Wall -Wextra -Wpedantic -Werror)
 target_compile_definitions(test_mount PRIVATE
     CLAUDEBOX_EXAMPLE_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../wsl-box/config/wsl-box.example.yaml")
 add_test(NAME mount_plan COMMAND test_mount)
+
+add_executable(test_gateway tests/test_gateway.cpp)
+target_link_libraries(test_gateway PRIVATE claudebox_identity)
+target_compile_options(test_gateway PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_compile_definitions(test_gateway PRIVATE
+    CLAUDEBOX_EXAMPLE_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../wsl-box/config/wsl-box.example.yaml"
+    CLAUDEBOX_GATEWAY_SAMPLE="${CMAKE_CURRENT_SOURCE_DIR}/../ClaudeBox.Gateway/samples/gateway.log.example.jsonl")
+add_test(NAME gateway_plan COMMAND test_gateway)
