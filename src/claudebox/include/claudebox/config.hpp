@@ -105,6 +105,9 @@ struct FeaturesSpec {
     int watch_interval_seconds = 5;
     bool oauth_open_in_fingerprint_browser = true;
     bool identity_vault = true;
+    // Empty = <prefix>/var/identity-vault. May also be a documented
+    // convention path. Host %APPDATA%\Claude and browser profiles are rejected.
+    std::string vault_dir;
 
     bool operator==(const FeaturesSpec&) const = default;
 };

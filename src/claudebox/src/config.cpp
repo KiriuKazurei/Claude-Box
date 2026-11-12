@@ -629,6 +629,9 @@ BoxConfig BoxConfig::parse_yaml(std::string_view text) {
         if (feat->child("identity_vault")) {
             cfg.features.identity_vault = feat->boolean("identity_vault", true);
         }
+        if (feat->child("vault_dir")) {
+            cfg.features.vault_dir = feat->str("vault_dir");
+        }
     }
 
     (void)walk;
@@ -710,6 +713,7 @@ std::string BoxConfig::to_yaml() const {
     write_bool(out, 4, "oauth_open_in_fingerprint_browser",
                features.oauth_open_in_fingerprint_browser);
     write_bool(out, 4, "identity_vault", features.identity_vault);
+    write_str(out, 4, "vault_dir", features.vault_dir);
     return out.str();
 }
 

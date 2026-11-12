@@ -54,6 +54,13 @@ public:
     // falls back to the host default browser.
     bool openCompanionUrl(const QString& url, QString* error, bool dry_run = false);
 
+    QString vaultStatusText() const;
+    void refreshVaultStatus();
+    bool archiveVault(QString* error);
+    bool switchVault(const QString& target_id, QString* error);
+    bool rollbackVault(QString* error);
+    QStringList vaultSnapshotIds() const;
+
     // Injected address sets for the gateway-page dry-run preview (no real NIC).
     void setIpChangePreview(const QStringList& previous, const QStringList& current,
                             bool gateway_running = true);
@@ -82,6 +89,11 @@ private slots:
     void onRefreshSpoofStatus();
     void onRefreshIpChangeStatus();
     void onRefreshCompanionStatus();
+    void onRefreshVaultStatus();
+    void onArchiveVault();
+    void onSwitchVault();
+    void onSwitchVaultEmpty();
+    void onRollbackVault();
 
 private:
     void buildUi();
@@ -94,6 +106,7 @@ private:
     QWidget* buildDesktopPage();
     QWidget* buildFeaturesPage();
     QWidget* buildCompanionPage();
+    QWidget* buildVaultPage();
     QWidget* buildRuntimePage();
     void fillIdentityTable();
     int identityRow(const QString& canonical) const;
@@ -114,6 +127,8 @@ private:
     QPlainTextEdit* spoof_status_ = nullptr;
     QPlainTextEdit* ip_change_status_ = nullptr;
     QPlainTextEdit* companion_status_ = nullptr;
+    QPlainTextEdit* vault_status_ = nullptr;
+    QListWidget* vault_snapshots_ = nullptr;
     QStringList ip_prev_;
     QStringList ip_curr_;
     bool ip_gateway_running_ = true;

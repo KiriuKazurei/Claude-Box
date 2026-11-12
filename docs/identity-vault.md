@@ -2,7 +2,7 @@
 
 > 决策日：2026-11-11（Asia/Tokyo）  
 > 决策者：和零（先采纳 [liseami/CCBaga](https://github.com/liseami/CCBaga) 伴生指纹浏览器，随后明确 **身份保险库也学**，同时 **尽可能避免修改宿主环境**）  
-> 状态：**产品策略，规划实现**（W7）；与 [companion-fingerprint-browser.md](./companion-fingerprint-browser.md) 配套。
+> 状态：**已在云电脑落地（P9，dry-run）**；与 [companion-fingerprint-browser.md](./companion-fingerprint-browser.md) 配套。真机上的活体 Desktop 登录态与进程结束仍须在 Win11 上核验。
 
 ## 学什么
 
@@ -44,11 +44,13 @@ features:
   # vault_dir: ""        # 空 = 发行版内默认路径
 ```
 
-## 实现落点（尚未编码）
+## 实现落点（P9）
+
+C++ 核心 `claudebox::vault` 与设置页「身份保险库」、命令行 `claudebox-vault` 已接线。云电脑上归档 / 切换 / 回滚对盒子前缀内的夹具身份有效。进程结束只做 dry-run。
 
 | 项 | 约定 |
 |----|------|
-| 容器 | 加密归档（实现阶段再定算法；可参考 CCBaga 的认证加密 + 压缩，不必二进制兼容 `.baga`） |
+| 容器 | AES-256-GCM + PBKDF2-HMAC-SHA256（OpenSSL 3，200000 次）；不必与 CCBaga `.baga` 二进制兼容。口令来自 `CLAUDE_BOX_VAULT_PASSPHRASE_FILE` 或环境变量，不写日志。 |
 | 事务 | 先写新代次并校验，再改「当前身份」指针；失败回滚；中断可恢复 |
 | 进程 | 切换 / 备份前结束盒子内 Claude（及已绑定的伴生浏览器），不杀宿主其它软件 |
 | 伴生浏览器 | 每个已绑定身份使用独立 `user-data-dir`；资料放在盒子侧，不并进宿主 Chrome/Edge |
@@ -56,7 +58,10 @@ features:
 
 桩目录：`src/wsl-box/identity-vault/`（W7 接线）。
 
-## 验收（W7）
+## 验收（W7 / P9）
+
+云电脑已证明：归档当前夹具身份、切到空工作区再切回；强制失败时工作副本与当前指针可回滚；写入不离开盒子前缀；口令不出现在状态文本。真机上「登录资料按策略恢复、切换时结束活的 Desktop / 伴生浏览器」仍待 Win11 核验。
+
 
 - 归档当前盒子身份、切到空工作区、再切回：登录资料按策略恢复，失败能回滚。
 - 全程 **不**改变宿主时区、语言、默认浏览器、系统代理。

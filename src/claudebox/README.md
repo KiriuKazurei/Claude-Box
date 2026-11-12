@@ -106,3 +106,18 @@ bash tests/claudebox/test-p8-gate.sh
 ```
 
 客机入口仍是 `src/wsl-box/companion-browser/open-oauth-url.sh`。
+
+## 身份保险库（P9）
+
+`claudebox/vault.hpp` 在盒子前缀内归档、切换和回滚身份工作副本（默认 `<prefix>/var/identity-vault`）。归档是 AES-256-GCM（PBKDF2-HMAC-SHA256，OpenSSL 3）认证加密，与 CCBaga `.baga` 不必兼容。口令来自 `CLAUDE_BOX_VAULT_PASSPHRASE_FILE` 或 `CLAUDE_BOX_VAULT_PASSPHRASE`，不会写进日志。每个身份可绑定盒子内独立的伴生浏览器资料目录；OAuth 仍不回退到宿主浏览器。
+
+切换 / 归档前会按现有节奏规划礼貌关闭盒子内 Claude 和已绑定的伴生浏览器；云电脑上只做 dry-run，不会结束真实进程，也不会改宿主时区、语言、默认浏览器或系统代理。
+
+```bash
+# 口令文件放在临时目录，不要把口令写进仓库或命令行历史展示。
+export CLAUDE_BOX_VAULT_PASSPHRASE_FILE=/tmp/claude-box-vault-pass
+./src/claudebox/build/claudebox-vault archive --prefix /tmp/claude-box-p9
+./src/claudebox/build/claudebox-vault switch --prefix /tmp/claude-box-p9 --target empty
+./src/claudebox/build/claudebox-vault rollback --prefix /tmp/claude-box-p9
+bash tests/claudebox/test-p9-gate.sh
+```

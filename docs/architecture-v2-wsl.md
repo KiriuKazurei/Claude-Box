@@ -123,7 +123,7 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 
 ### 身份保险库（规划 · 默认开 · 尽量不改宿主）
 
-和零补充（同日）：保险库也学。归档 / 切换只发生在发行版或 `%LOCALAPPDATA%\ClaudeBox\` 专属目录，**不**改宿主时区语言，也**不**把宿主日常 Claude 目录当作工作副本。配置 `features.identity_vault: true`。专篇：[identity-vault.md](./identity-vault.md)；桩：`src/wsl-box/identity-vault/`。
+和零补充（同日）：保险库也学。归档 / 切换只发生在发行版或 `%LOCALAPPDATA%\ClaudeBox\` 专属目录，**不**改宿主时区语言，也**不**把宿主日常 Claude 目录当作工作副本。配置 `features.identity_vault: true`。专篇：[identity-vault.md](./identity-vault.md)；实现：`claudebox::vault` 与 `src/wsl-box/identity-vault/`（P9 已在云电脑以 dry-run / 夹具落地）。
 
 ## 框架搭建模块
 
@@ -248,4 +248,4 @@ bash tests/wsl-box/test-linux-framework.sh   # 含 test-host-identity.sh
 - README：`src/wsl-box/README.md`
 - 可选 IP 波动杀进程：[kill-on-local-ip-change.md](./kill-on-local-ip-change.md)
 - 伴生指纹浏览器（OA）：[companion-fingerprint-browser.md](./companion-fingerprint-browser.md)；`src/wsl-box/companion-browser/` 与 `claudebox/companion.hpp`（P8）
-- 身份保险库：[identity-vault.md](./identity-vault.md)；桩 `src/wsl-box/identity-vault/`
+- 身份保险库：[identity-vault.md](./identity-vault.md)；`claudebox/vault.hpp` 与 `src/wsl-box/identity-vault/`（P9）

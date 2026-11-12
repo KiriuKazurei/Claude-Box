@@ -101,3 +101,6 @@ spec:
     # 盒子内身份保险库（学 CCBaga）；只写发行版 / ClaudeBox 专属目录，尽量不改宿主。
     # 见 docs/identity-vault.md
     identity_vault: true
+    # 空 = 盒子前缀 var/identity-vault；也可设为发行版 /var/lib/claude-box/identity-vault
+    # 或 %LOCALAPPDATA%\ClaudeBox\identity-vault\。不要写成宿主默认 Claude / 浏览器资料目录。
+    vault_dir: ""

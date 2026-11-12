@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+find_package(OpenSSL REQUIRED)
+
 add_library(claudebox_identity
     src/identity.cpp
     src/collect.cpp
@@ -15,8 +17,10 @@ add_library(claudebox_identity
     src/gateway_ip.cpp
     src/spoof.cpp
     src/companion.cpp
+    src/vault.cpp
 )
 target_include_directories(claudebox_identity PUBLIC include)
+target_link_libraries(claudebox_identity PUBLIC OpenSSL::Crypto)
 target_compile_options(claudebox_identity PRIVATE -Wall -Wextra -Wpedantic -Werror)
 target_compile_definitions(claudebox_identity PRIVATE
     CLAUDEBOX_OPEN_OAUTH_SCRIPT="${CMAKE_CURRENT_SOURCE_DIR}/../wsl-box/companion-browser/open-oauth-url.sh")
@@ -28,6 +32,10 @@ target_compile_options(claudebox-identity PRIVATE -Wall -Wextra -Wpedantic -Werr
 add_executable(claudebox-companion src/companion_cli.cpp)
 target_link_libraries(claudebox-companion PRIVATE claudebox_identity)
 target_compile_options(claudebox-companion PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
+add_executable(claudebox-vault src/vault_cli.cpp)
+target_link_libraries(claudebox-vault PRIVATE claudebox_identity)
+target_compile_options(claudebox-vault PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_executable(test_identity tests/test_identity.cpp)
 target_link_libraries(test_identity PRIVATE claudebox_identity)
@@ -91,3 +99,10 @@ target_compile_definitions(test_companion PRIVATE
     CLAUDEBOX_EXAMPLE_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../wsl-box/config/wsl-box.example.yaml"
     CLAUDEBOX_OPEN_OAUTH_SCRIPT="${CMAKE_CURRENT_SOURCE_DIR}/../wsl-box/companion-browser/open-oauth-url.sh")
 add_test(NAME companion_browser COMMAND test_companion)
+
+add_executable(test_vault tests/test_vault.cpp)
+target_link_libraries(test_vault PRIVATE claudebox_identity)
+target_compile_options(test_vault PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_compile_definitions(test_vault PRIVATE
+    CLAUDEBOX_EXAMPLE_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../wsl-box/config/wsl-box.example.yaml")
+add_test(NAME identity_vault COMMAND test_vault)

@@ -4,12 +4,15 @@
 #include "claudebox/identity.hpp"
 #include "claudebox/spoof.hpp"
 #include "claudebox/companion.hpp"
+#include "claudebox/vault.hpp"
 #include "claudebox/gateway_ip.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QListWidget>
+#include <QListWidgetItem>
 #include <QSignalSpy>
 #include <QtTest>
 
@@ -537,6 +540,70 @@ private slots:
         QVERIFY(envtxt.contains(QStringLiteral("TZ=America/Los_Angeles")));
         QVERIFY(envtxt.contains(QStringLiteral("HTTP_PROXY=http://127.0.0.1:3080")));
         QVERIFY(envtxt.contains(QStringLiteral("LANG=en_US.UTF-8")));
+    }
+
+
+    void vaultArchiveSwitchEmptyAndBack() {
+        seedPrefix(uniquePrefix("vault"));
+        const auto vault = prefix_ / "var" / "identity-vault";
+        const auto workspace = vault / "workspace";
+        const auto companion =
+            prefix_ / "var" / "companion-browser" / "identities" / "live" / "profile";
+        fs::create_directories(workspace / "desktop");
+        fs::create_directories(companion);
+        {
+            std::ofstream out(workspace / "identity.json");
+            out << "{\"kind\":\"claude-box-identity\",\"name\":\"fixture-a\"}\n";
+        }
+        {
+            std::ofstream out(workspace / "desktop" / "login.json");
+            out << "{\"token\":\"token-aaa\"}\n";
+        }
+        {
+            std::ofstream out(workspace / "companion-bind.txt");
+            out << companion.string() << "\n";
+        }
+        {
+            std::ofstream out(companion / "Preferences");
+            out << "{\"profile\":\"fixture-a\"}\n";
+        }
+        const auto passfile = prefix_ / "secret" / "vault-pass.txt";
+        fs::create_directories(passfile.parent_path());
+        {
+            std::ofstream out(passfile);
+            out << "fixture-passphrase-not-for-logs\n";
+        }
+
+        SettingsWindow window(options_);
+        QVERIFY(window.findChild<QPlainTextEdit*>(QStringLiteral("vaultStatusPreview")));
+        QVERIFY(window.findChild<QPushButton*>(QStringLiteral("archiveVaultButton")));
+        QVERIFY(window.findChild<QListWidget*>(QStringLiteral("vaultSnapshotList")));
+        QVERIFY(window.isChecked(QStringLiteral("identityVaultCheck")));
+        window.setLineValue(QStringLiteral("vaultPassphraseFileEdit"),
+                            QString::fromStdString(passfile.string()));
+
+        QString status = window.vaultStatusText();
+        QVERIFY2(status.contains(QString::fromUtf8("身份保险库")), qPrintable(status));
+        QVERIFY(status.contains(QStringLiteral("AES-256-GCM")));
+        QVERIFY(!status.contains(QStringLiteral("fixture-passphrase-not-for-logs")));
+        QVERIFY(status.contains(QString::fromUtf8("不会改宿主")));
+
+        QString error;
+        QVERIFY2(window.archiveVault(&error), qPrintable(error));
+        QVERIFY(!error.contains(QStringLiteral("fixture-passphrase-not-for-logs")));
+        const auto ids = window.vaultSnapshotIds();
+        QVERIFY2(!ids.isEmpty(), qPrintable(window.vaultStatusText()));
+        const QString first = ids.first();
+
+        QVERIFY2(window.switchVault(QStringLiteral("empty"), &error), qPrintable(error));
+        const auto emptied = QString::fromStdString(read_text(workspace / "identity.json"));
+        QVERIFY2(emptied.contains(QStringLiteral("empty")), qPrintable(emptied));
+        QVERIFY(!emptied.contains(QStringLiteral("fixture-a")));
+
+        QVERIFY2(window.switchVault(first, &error), qPrintable(error));
+        const auto restored = QString::fromStdString(read_text(workspace / "desktop" / "login.json"));
+        QVERIFY2(restored.contains(QStringLiteral("token-aaa")), qPrintable(restored));
+        QVERIFY(!window.vaultStatusText().contains(QStringLiteral("fixture-passphrase-not-for-logs")));
     }
 
     void smokeConstructsWithoutCrash() {

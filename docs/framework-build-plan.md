@@ -38,7 +38,7 @@
 | **P6** | 唯一网关 | 上游（含 Clash）、JSONL、blocklist；控件显示状态 | 既有 gateway smoke 仍过；控件可读写上游与日志路径 |
 | **P7** | 时区 / 语言伪装 | 沿用 `apply-spoof`；设置页展示的是**盒子伪装值** | Intl 探针仍为配置中的假时区 / 语言；不把宿主真实时区当作默认可展示字段 |
 | **P8** | 伴生指纹浏览器 | 将 W6 从桩接到可用实现 | 授权 URL 不回退宿主默认浏览器；出网仍经网关。云电脑以 mock 引擎 / 缺失引擎用例验收；不自动下载引擎。 |
-| **P9** | 身份保险库 | 将 W7 从桩接到可用实现 | 归档 / 切换 / 回滚只动盒子目录 |
+| **P9** | 身份保险库 | 将 W7 从桩接到可用实现 | 归档 / 切换 / 回滚只动盒子目录。加密为 AES-256-GCM；云电脑以夹具口令文件验收。 |
 | **P10** | 启停 Desktop | 控件启停 Linux Claude Desktop（WSLg 窗口） | dry-run 启停桩通过；不在云电脑假装已启动真机 Desktop。本机 IP 波动响应已归入唯一网关模块（P6 家族），不再由 P10 承担。 |
 | **P11** | 集成，做到接近 beta | 全链路 dry-run 验收清单、文档与行为对齐 | 上述模块测试全绿；缺真机的项逐条标明，不写成功 |
 
@@ -49,7 +49,7 @@
 - `src/wsl-box/` 的 bash / PowerShell dry-run **保持可跑、测试保持全绿**。P3 已接线：`apply-host-identity.sh` / `verify-host-identity.sh` 调用 C++ `claudebox-identity` 生成并校验展示层。
 - `hide_identifiers: true` 仍是过渡约束（设为 false 会失败，避免整份原始清单被放开）。按字段的 `expose` / `hide` / `override` 通过 `CLAUDE_BOX_IDENTITY_POLICY` 或 `var/host-identity.policy.yaml` 生效。
 - P1 起新增 `src/claudebox/`（C++ 核心）与 `src/claudebox-ui/`（Qt 设置页，P4）。旧的 `ClaudeBox.Control`（WinForms / Hyper-V）只作参考，不再作为主控件方向。
-- 默认策略不变：厂商 / 型号可原样展示，硬件编码默认隐藏；用户策略可以改为展示或修改后展示。设置页（P4）已落地：`src/claudebox-ui/` 可在云电脑用夹具打开，编辑全部 `wsl-box.yaml` 配置段与每字段身份策略。P5 已把 dry-run 挂载计划与发行版生命周期预览接到设置页：只挂 `visible_dirs`，拒绝整挂宿主 `C:` / 整棵 Users / `/mnt/c`，不调用 `wsl.exe`。P6 已把唯一网关的配置与状态接到同一设置页：C++ 核心生成 gost 中继计划、校验上游、按现有后缀规则匹配 blocklist、读写 JSONL；控件可读写上游与日志路径并显示 dry-run 状态。gost 在 Win11 上的实际启动仍由现有 `ClaudeBox.Gateway` 模块负责，本阶段不在云电脑上启动或绑定。 P7 已把时区 / 语言伪装接到同一设置页：保存身份伪装时，C++ 核心把盒子伪装值写入前缀（`env/spoof.env`、`env/session.env`、前缀内 `etc/localtime`），并用 Intl 探针校验配置中的假时区 / 语言；不写宿主 `/etc/localtime`，也不把宿主真实时区当作默认可展示字段。现有 `apply-spoof.sh` / `verify-spoof.sh` 合同保持可用。 本机 IP 波动响应属于唯一网关模块（P6 家族，而非 P10）：打开 `features.kill_on_local_ip_change` 后，地址集合变化会**同时启动**断开网关与礼貌关进程（互不等待），进程 grace 后再强杀；默认仍为关。云电脑上只做 dry-run 计划。 P8 已把伴生指纹浏览器接到同一设置页：C++ 核心规划引擎、独立资料目录、盒子伪装环境与唯一网关代理，并在前缀内安装 `xdg-open` / `BROWSER` 拦截；引擎未就绪时拒绝打开，绝不回退宿主默认浏览器。不自动下载 Fingerprint Chromium，云电脑上只用 mock 引擎做 dry-run。
+- 默认策略不变：厂商 / 型号可原样展示，硬件编码默认隐藏；用户策略可以改为展示或修改后展示。设置页（P4）已落地：`src/claudebox-ui/` 可在云电脑用夹具打开，编辑全部 `wsl-box.yaml` 配置段与每字段身份策略。P5 已把 dry-run 挂载计划与发行版生命周期预览接到设置页：只挂 `visible_dirs`，拒绝整挂宿主 `C:` / 整棵 Users / `/mnt/c`，不调用 `wsl.exe`。P6 已把唯一网关的配置与状态接到同一设置页：C++ 核心生成 gost 中继计划、校验上游、按现有后缀规则匹配 blocklist、读写 JSONL；控件可读写上游与日志路径并显示 dry-run 状态。gost 在 Win11 上的实际启动仍由现有 `ClaudeBox.Gateway` 模块负责，本阶段不在云电脑上启动或绑定。 P7 已把时区 / 语言伪装接到同一设置页：保存身份伪装时，C++ 核心把盒子伪装值写入前缀（`env/spoof.env`、`env/session.env`、前缀内 `etc/localtime`），并用 Intl 探针校验配置中的假时区 / 语言；不写宿主 `/etc/localtime`，也不把宿主真实时区当作默认可展示字段。现有 `apply-spoof.sh` / `verify-spoof.sh` 合同保持可用。 本机 IP 波动响应属于唯一网关模块（P6 家族，而非 P10）：打开 `features.kill_on_local_ip_change` 后，地址集合变化会**同时启动**断开网关与礼貌关进程（互不等待），进程 grace 后再强杀；默认仍为关。云电脑上只做 dry-run 计划。 P8 已把伴生指纹浏览器接到同一设置页：C++ 核心规划引擎、独立资料目录、盒子伪装环境与唯一网关代理，并在前缀内安装 `xdg-open` / `BROWSER` 拦截；引擎未就绪时拒绝打开，绝不回退宿主默认浏览器。不自动下载 Fingerprint Chromium，云电脑上只用 mock 引擎做 dry-run。 P9 已把身份保险库接到同一设置页：可归档、切换到空工作区再切回、在强制失败时回滚；只写盒子前缀，不改宿主时区 / 语言 / 默认浏览器 / 系统代理。进程结束仍是 dry-run。
 
 ## 工作约定
 

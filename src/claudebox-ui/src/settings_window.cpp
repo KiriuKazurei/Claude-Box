@@ -8,8 +8,10 @@
 #include "claudebox/gateway_ip.hpp"
 #include "claudebox/spoof.hpp"
 #include "claudebox/companion.hpp"
+#include "claudebox/vault.hpp"
 
 #include <algorithm>
+#include <cstdlib>
 #include <vector>
 
 #include <QAbstractItemView>
@@ -154,6 +156,7 @@ void SettingsWindow::buildUi() {
         u8("桌面"),
         u8("功能"),
         u8("伴生浏览器"),
+        u8("身份保险库"),
         u8("运行时预览"),
     };
     for (const auto& name : pages) {
@@ -171,6 +174,7 @@ void SettingsWindow::buildUi() {
     stack->addWidget(buildDesktopPage());
     stack->addWidget(buildFeaturesPage());
     stack->addWidget(buildCompanionPage());
+    stack->addWidget(buildVaultPage());
     stack->addWidget(buildRuntimePage());
 
     connect(nav, &QListWidget::currentRowChanged, stack, &QStackedWidget::setCurrentIndex);
@@ -469,7 +473,7 @@ QWidget* SettingsWindow::buildFeaturesPage() {
     auto* page = new QWidget;
     auto* layout = new QVBoxLayout(page);
     layout->addWidget(noteLabel(
-        u8("功能开关同样是配置项。伴生指纹浏览器的状态与拦截预览在「伴生浏览器」页。身份保险库的运行时接线属于后续模块。"
+        u8("功能开关同样是配置项。伴生指纹浏览器的状态与拦截预览在「伴生浏览器」页。身份保险库的归档 / 切换 / 回滚在「身份保险库」页。"
            "本机 IP 波动时的网关断开与进程结束策略在「网关」页配置（同一模块，默认关），这里只作说明。")));
     auto add = [&](const QString& name, const QString& label) {
         auto* check = new QCheckBox(label);
@@ -518,6 +522,67 @@ QWidget* SettingsWindow::buildCompanionPage() {
     statusLayout->addWidget(refresh, 0, Qt::AlignLeft);
     layout->addWidget(statusBox, 1);
     connect(refresh, &QPushButton::clicked, this, &SettingsWindow::onRefreshCompanionStatus);
+    return wrapScroll(page);
+}
+
+QWidget* SettingsWindow::buildVaultPage() {
+    auto* page = new QWidget;
+    auto* layout = new QVBoxLayout(page);
+    layout->addWidget(noteLabel(
+        u8("身份保险库只管理盒子内的 Desktop 资料，不改宿主时区、语言、默认浏览器或系统代理，"
+           "也不会把宿主默认 Claude 目录当作工作副本。归档使用 AES-256-GCM 认证加密。"
+           "口令只从口令文件读取，不会写入日志或本页状态。"
+           "切换前会规划礼貌关闭盒子内 Claude 和已绑定的伴生浏览器，这是 dry-run，不会结束真实进程。")));
+    auto* form = new QFormLayout;
+    form->addRow(u8("保险库目录（空 = 前缀下 var/identity-vault）"),
+                 namedEdit(QStringLiteral("vaultDirEdit")));
+    form->addRow(u8("口令文件（只填路径，不要把口令写进配置）"),
+                 namedEdit(QStringLiteral("vaultPassphraseFileEdit"),
+                           u8("例如前缀内 secret/vault-pass.txt")));
+    layout->addLayout(form);
+
+    auto* listBox = new QGroupBox(u8("快照"));
+    auto* listLayout = new QVBoxLayout(listBox);
+    vault_snapshots_ = new QListWidget;
+    vault_snapshots_->setObjectName(QStringLiteral("vaultSnapshotList"));
+    listLayout->addWidget(vault_snapshots_);
+    auto* row = new QHBoxLayout;
+    auto* arch = new QPushButton(u8("归档当前身份"));
+    arch->setObjectName(QStringLiteral("archiveVaultButton"));
+    auto* sw = new QPushButton(u8("切换到所选"));
+    sw->setObjectName(QStringLiteral("switchVaultButton"));
+    auto* empty = new QPushButton(u8("切换到空工作区"));
+    empty->setObjectName(QStringLiteral("switchVaultEmptyButton"));
+    auto* rb = new QPushButton(u8("回滚到上一份"));
+    rb->setObjectName(QStringLiteral("rollbackVaultButton"));
+    row->addWidget(arch);
+    row->addWidget(sw);
+    row->addWidget(empty);
+    row->addWidget(rb);
+    listLayout->addLayout(row);
+    layout->addWidget(listBox);
+
+    auto* statusBox = new QGroupBox(u8("状态与预览"));
+    auto* statusLayout = new QVBoxLayout(statusBox);
+    vault_status_ = new QPlainTextEdit;
+    vault_status_->setObjectName(QStringLiteral("vaultStatusPreview"));
+    vault_status_->setReadOnly(true);
+    vault_status_->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+    vault_status_->setMinimumHeight(180);
+    auto font = vault_status_->font();
+    font.setStyleHint(QFont::Monospace);
+    font.setFamily(QStringLiteral("monospace"));
+    vault_status_->setFont(font);
+    statusLayout->addWidget(vault_status_, 1);
+    auto* refresh = new QPushButton(u8("刷新保险库状态"));
+    refresh->setObjectName(QStringLiteral("refreshVaultStatusButton"));
+    statusLayout->addWidget(refresh, 0, Qt::AlignLeft);
+    layout->addWidget(statusBox, 1);
+    connect(refresh, &QPushButton::clicked, this, &SettingsWindow::onRefreshVaultStatus);
+    connect(arch, &QPushButton::clicked, this, &SettingsWindow::onArchiveVault);
+    connect(sw, &QPushButton::clicked, this, &SettingsWindow::onSwitchVault);
+    connect(empty, &QPushButton::clicked, this, &SettingsWindow::onSwitchVaultEmpty);
+    connect(rb, &QPushButton::clicked, this, &SettingsWindow::onRollbackVault);
     return wrapScroll(page);
 }
 
@@ -694,11 +759,13 @@ void SettingsWindow::syncFromSession() {
     setChecked(QStringLiteral("oauthFingerprintCheck"),
                c.features.oauth_open_in_fingerprint_browser);
     setChecked(QStringLiteral("identityVaultCheck"), c.features.identity_vault);
+    setLineValue(QStringLiteral("vaultDirEdit"), QString::fromStdString(c.features.vault_dir));
     refreshRuntimePreview();
     refreshGatewayStatus();
     refreshSpoofStatus();
     refreshIpChangeStatus();
     refreshCompanionStatus();
+    refreshVaultStatus();
 }
 
 bool SettingsWindow::harvestToSession(QString* error) {
@@ -751,6 +818,7 @@ bool SettingsWindow::harvestToSession(QString* error) {
     c.features.oauth_open_in_fingerprint_browser =
         isChecked(QStringLiteral("oauthFingerprintCheck"));
     c.features.identity_vault = isChecked(QStringLiteral("identityVaultCheck"));
+    c.features.vault_dir = lineValue(QStringLiteral("vaultDirEdit")).toStdString();
 
     for (int row = 0; row < identity_table_->rowCount(); ++row) {
         const auto* name = identity_table_->item(row, 0);
@@ -1045,6 +1113,201 @@ void SettingsWindow::onRefreshCompanionStatus() {
     refreshCompanionStatus();
 }
 
+QString SettingsWindow::vaultStatusText() const {
+    return vault_status_ ? vault_status_->toPlainText() : QString{};
+}
+
+QStringList SettingsWindow::vaultSnapshotIds() const {
+    QStringList ids;
+    if (!vault_snapshots_) {
+        return ids;
+    }
+    for (int i = 0; i < vault_snapshots_->count(); ++i) {
+        ids << vault_snapshots_->item(i)->data(Qt::UserRole).toString();
+    }
+    return ids;
+}
+
+void SettingsWindow::refreshVaultStatus() {
+    if (!vault_status_) {
+        return;
+    }
+    const auto previous = session_;
+    QString error;
+    const bool harvested = harvestToSession(&error);
+    const auto planned = claudebox::vault::plan(session_.config, session_.paths.prefix);
+    vault_status_->setPlainText(QString::fromStdString(claudebox::vault::format_status(planned)));
+    if (vault_snapshots_) {
+        vault_snapshots_->clear();
+        for (const auto& snap : planned.snapshots) {
+            QString label = QString::fromStdString(snap.id);
+            if (!snap.label.empty() && snap.label != snap.id) {
+                label += QStringLiteral(" · ") + QString::fromStdString(snap.label);
+            }
+            if (snap.current) {
+                label += QString::fromUtf8(" [当前]");
+            }
+            if (snap.previous) {
+                label += QString::fromUtf8(" [上一份]");
+            }
+            auto* item = new QListWidgetItem(label);
+            item->setData(Qt::UserRole, QString::fromStdString(snap.id));
+            vault_snapshots_->addItem(item);
+            if (snap.current) {
+                vault_snapshots_->setCurrentItem(item);
+            }
+        }
+    }
+    if (!harvested && !error.isEmpty()) {
+        vault_status_->appendPlainText(QString::fromUtf8("\n表单还未填完：") + error);
+    }
+    if (!harvested) {
+        session_ = previous;
+    }
+}
+
+void SettingsWindow::onRefreshVaultStatus() {
+    refreshVaultStatus();
+}
+
+namespace {
+
+bool vaultPassphrase(QWidget* window, std::string* pass, QString* error) {
+    const auto file = window->findChild<QLineEdit*>(QStringLiteral("vaultPassphraseFileEdit"));
+    const QString path = file ? file->text().trimmed() : QString{};
+    if (!path.isEmpty()) {
+        setenv("CLAUDE_BOX_VAULT_PASSPHRASE_FILE", path.toStdString().c_str(), 1);
+    }
+    std::string err;
+    if (!claudebox::vault::load_passphrase(pass, &err)) {
+        if (error) {
+            *error = QString::fromStdString(err);
+        }
+        return false;
+    }
+    return true;
+}
+
+void clearPass(std::string* pass) {
+    if (pass) {
+        std::fill(pass->begin(), pass->end(), '\0');
+        pass->clear();
+    }
+}
+
+}  // namespace
+
+bool SettingsWindow::archiveVault(QString* error) {
+    if (!harvestToSession(error)) {
+        return false;
+    }
+    std::string pass;
+    if (!vaultPassphrase(this, &pass, error)) {
+        return false;
+    }
+    claudebox::vault::ActionOptions options;
+    options.label = "settings";
+    const auto result = claudebox::vault::archive(session_.config, session_.paths.prefix, pass, options);
+    clearPass(&pass);
+    if (!result.ok) {
+        if (error) {
+            *error = QString::fromStdString(result.error);
+        }
+        refreshVaultStatus();
+        return false;
+    }
+    refreshVaultStatus();
+    return true;
+}
+
+bool SettingsWindow::switchVault(const QString& target_id, QString* error) {
+    if (!harvestToSession(error)) {
+        return false;
+    }
+    std::string pass;
+    if (!vaultPassphrase(this, &pass, error)) {
+        return false;
+    }
+    const auto result = claudebox::vault::switch_to(
+        session_.config, session_.paths.prefix, target_id.toStdString(), pass, {});
+    clearPass(&pass);
+    if (!result.ok) {
+        if (error) {
+            *error = QString::fromStdString(result.error);
+        }
+        refreshVaultStatus();
+        return false;
+    }
+    refreshVaultStatus();
+    return true;
+}
+
+bool SettingsWindow::rollbackVault(QString* error) {
+    if (!harvestToSession(error)) {
+        return false;
+    }
+    std::string pass;
+    if (!vaultPassphrase(this, &pass, error)) {
+        return false;
+    }
+    const auto result = claudebox::vault::rollback(session_.config, session_.paths.prefix, pass, {});
+    clearPass(&pass);
+    if (!result.ok) {
+        if (error) {
+            *error = QString::fromStdString(result.error);
+        }
+        refreshVaultStatus();
+        return false;
+    }
+    refreshVaultStatus();
+    return true;
+}
+
+void SettingsWindow::onArchiveVault() {
+    QString error;
+    if (!archiveVault(&error)) {
+        statusBar()->showMessage(u8("归档失败：") + error, 8000);
+        return;
+    }
+    statusBar()->showMessage(u8("已归档当前盒子身份。"), 8000);
+}
+
+void SettingsWindow::onSwitchVault() {
+    QString error;
+    QString target;
+    if (vault_snapshots_ && vault_snapshots_->currentItem()) {
+        target = vault_snapshots_->currentItem()->data(Qt::UserRole).toString();
+    }
+    if (target.isEmpty()) {
+        statusBar()->showMessage(u8("请先选择一份快照。"), 8000);
+        return;
+    }
+    if (!switchVault(target, &error)) {
+        statusBar()->showMessage(u8("切换失败：") + error, 8000);
+        return;
+    }
+    statusBar()->showMessage(u8("已切换盒子身份。"), 8000);
+}
+
+void SettingsWindow::onSwitchVaultEmpty() {
+    QString error;
+    if (!switchVault(QStringLiteral("empty"), &error)) {
+        statusBar()->showMessage(u8("切换失败：") + error, 8000);
+        return;
+    }
+    statusBar()->showMessage(u8("已切换到空工作区。"), 8000);
+}
+
+void SettingsWindow::onRollbackVault() {
+    QString error;
+    if (!rollbackVault(&error)) {
+        statusBar()->showMessage(u8("回滚失败：") + error, 8000);
+        return;
+    }
+    statusBar()->showMessage(u8("已回滚到上一份盒子身份。"), 8000);
+}
+
+
 bool SettingsWindow::openCompanionUrl(const QString& url, QString* error, bool dry_run) {
     const auto previous = session_;
     QString harvest_error;
@@ -1084,6 +1347,7 @@ void SettingsWindow::onSave() {
     refreshSpoofStatus();
     refreshIpChangeStatus();
     refreshCompanionStatus();
+    refreshVaultStatus();
 }
 
 void SettingsWindow::onReload() {
