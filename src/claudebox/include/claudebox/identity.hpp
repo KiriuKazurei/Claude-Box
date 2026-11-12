@@ -38,8 +38,15 @@ struct Policy {
     static Policy parse_yaml(std::string_view text);
     static Policy load_file(const std::filesystem::path& path);
 
+    std::string to_yaml() const;
+    void save_file(const std::filesystem::path& path) const;
+
     FieldPolicy policy_for(std::string_view canonical) const;
 };
+
+// Default policy path under a box prefix.
+std::filesystem::path policy_path(const std::filesystem::path& prefix);
+void write_policy(const std::filesystem::path& path, const Policy& policy);
 
 using Inventory = std::map<std::string, std::string>;
 

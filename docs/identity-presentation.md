@@ -35,8 +35,10 @@ Claude Box 部署之后会采集这台电脑的有关信息，在设置页列出
 
 P3 已把展示层生成接到 C++ 策略引擎：`apply-host-identity.sh` 调用 `claudebox-identity apply`，`verify-host-identity.sh` 按同一份策略校验。默认策略与上表一致。
 
-`hide_identifiers: true` 仍是过渡约束，设为 false 时 apply / verify 必须失败。它**不是**「把原始清单全部公开」的开关；要原样展示或修改后再展示某个字段，写入每字段策略（`CLAUDE_BOX_IDENTITY_POLICY` 或盒子内 `var/host-identity.policy.yaml`）。宿主导出脚本目前仍只写厂商 / 型号。设置页（P4）尚未落地。测试覆盖默认隐藏、选择展示、修改后展示，以及被隐藏或已覆盖的原始值不得泄漏进展示层。
+`hide_identifiers: true` 仍是过渡约束，设为 false 时 apply / verify 必须失败。它**不是**「把原始清单全部公开」的开关；要原样展示或修改后再展示某个字段，写入每字段策略（`CLAUDE_BOX_IDENTITY_POLICY` 或盒子内 `var/host-identity.policy.yaml`）。宿主导出脚本目前仍只写厂商 / 型号。设置页（P4）已落地：`src/claudebox-ui/` 的 Qt 设置中心可读取原始清单、按字段选择并保存策略与展示层，同时也能编辑 `wsl-box.yaml` 的其他配置段。测试覆盖默认隐藏、选择展示、修改后展示，以及被隐藏或已覆盖的原始值不得泄漏进展示层。
 
 ## 设置页（P4）
 
-控件（C++/Qt）应逐项列出已采集字段，并清楚标明当前是展示、隐藏还是已修改。保存后只更新盒子内策略与展示层，不改宿主时区、语言或默认浏览器。
+控件（C++/Qt，`src/claudebox-ui/`）逐项列出已采集字段，并清楚标明当前是原样展示、隐藏还是修改后展示。保存后只更新盒子内配置、`var/host-identity.policy.yaml` 与展示层，不改宿主时区、语言或默认浏览器。时区 / 语言页展示的是盒子伪装值，不提供「暴露宿主真实时区 / 语言」作为清单选项。`hide_identifiers` 在配置里保持为 true，不能当作整份公开开关。
+
+云电脑可用虚构夹具打开设置页，见 [src/claudebox-ui/README.md](../src/claudebox-ui/README.md)。

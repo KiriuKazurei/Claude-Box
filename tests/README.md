@@ -41,3 +41,9 @@ bash tests/claudebox/test-p1-p2-gate.sh
 ```bash
 bash tests/claudebox/test-p1-p2-p3-gate.sh
 ```
+
+`claudebox/test-p4-gate.sh` — P4 设置页门禁：先跑 P1+P2+P3，再编译 Qt 设置页、跑无头用例（夹具清单默认策略、隐藏 / 修改后展示 / 选择展示、整份 `wsl-box.yaml` 往返），并用 `QT_QPA_PLATFORM=offscreen` 启动设置页冒烟。
+
+```bash
+bash tests/claudebox/test-p4-gate.sh
+```

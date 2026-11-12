@@ -49,3 +49,11 @@ bash tests/claudebox/test-p1-p2-gate.sh
 ```bash
 bash tests/claudebox/test-p1-p2-p3-gate.sh
 ```
+
+## 设置页（P4）
+
+盒子配置的读写（`wsl-box.yaml`）和设置会话在本库：`claudebox/config.hpp`、`claudebox/settings.hpp`。Qt 设置页在 [src/claudebox-ui/](../claudebox-ui/README.md)。
+
+```bash
+bash tests/claudebox/test-p4-gate.sh
+```

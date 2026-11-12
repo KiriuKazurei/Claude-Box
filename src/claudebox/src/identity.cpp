@@ -369,6 +369,43 @@ Policy Policy::load_file(const std::filesystem::path& path) {
     return parse_yaml(read_file(path));
 }
 
+std::string Policy::to_yaml() const {
+    std::ostringstream out;
+    out << "# Claude Box identity presentation policy (per-field).\n";
+    out << "# Do not commit real hardware identifiers.\n";
+    out << "fields:\n";
+    auto write_field = [&](const std::string& id, const FieldPolicy& fp) {
+        out << "  " << id << ":\n";
+        out << "    mode: " << field_mode_name(fp.mode) << "\n";
+        if (fp.mode == FieldMode::Override || !fp.override_value.empty()) {
+            out << "    value: " << yaml_quote(fp.override_value) << "\n";
+        }
+    };
+    std::set<std::string> written;
+    for (const auto& id : canonical_field_ids()) {
+        write_field(id, policy_for(id));
+        written.insert(id);
+    }
+    for (const auto& [id, fp] : fields) {
+        if (!written.count(id)) {
+            write_field(id, fp);
+        }
+    }
+    return out.str();
+}
+
+void Policy::save_file(const std::filesystem::path& path) const {
+    write_file(path, to_yaml());
+}
+
+std::filesystem::path policy_path(const std::filesystem::path& prefix) {
+    return prefix / "var" / "host-identity.policy.yaml";
+}
+
+void write_policy(const std::filesystem::path& path, const Policy& policy) {
+    policy.save_file(path);
+}
+
 Inventory parse_flat_yaml(std::string_view text) {
     Inventory out;
     static const std::regex key_re(R"(^([A-Za-z0-9_.]+)\s*:\s*(.*?)\s*$)");
