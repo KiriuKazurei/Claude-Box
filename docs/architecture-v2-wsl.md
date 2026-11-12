@@ -93,7 +93,7 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
    - `[automount] enabled=false`（或 `mountFsTab=false` + 自定义）
    - 避免 Claude 默认看见整盘 `C:`
 2. 仅对 `visible_dirs`：`wsl.exe` + `mount --bind` 到 `/mnt/claude-box/<name>`，或 `/etc/fstab` 条目由 host 脚本生成。
-3. 拒绝把 `C:\` / `C:\Users\<宿主>` 整棵挂进发行版。
+3. 拒绝把 `C:\` / `C:\Users\<宿主>` 整棵挂进发行版。 云电脑上的 C++ 挂载计划（`claudebox::mount::plan_mounts`）与设置页共用同一套校验，只做 dry-run，不调用 `wsl.exe`。
 
 ## 网关与反遥测
 

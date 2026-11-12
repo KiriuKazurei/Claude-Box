@@ -47,3 +47,9 @@ bash tests/claudebox/test-p1-p2-p3-gate.sh
 ```bash
 bash tests/claudebox/test-p4-gate.sh
 ```
+
+`claudebox/test-p4-p5-gate.sh` — P4+P5 完整门禁：复用 P4 门禁（含 P1+P2+P3 与既有 wsl-box smoke），再跑 dry-run 挂载计划与「拒绝 C:」用例。示例可见目录应规划成功；`C:` / `C:\Users` / `/mnt/c` 必须被核心、会话保存和设置页同时拒绝。
+
+```bash
+bash tests/claudebox/test-p4-p5-gate.sh
+```

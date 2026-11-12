@@ -49,7 +49,7 @@
 - `src/wsl-box/` 的 bash / PowerShell dry-run **保持可跑、测试保持全绿**。P3 已接线：`apply-host-identity.sh` / `verify-host-identity.sh` 调用 C++ `claudebox-identity` 生成并校验展示层。
 - `hide_identifiers: true` 仍是过渡约束（设为 false 会失败，避免整份原始清单被放开）。按字段的 `expose` / `hide` / `override` 通过 `CLAUDE_BOX_IDENTITY_POLICY` 或 `var/host-identity.policy.yaml` 生效。
 - P1 起新增 `src/claudebox/`（C++ 核心）与 `src/claudebox-ui/`（Qt 设置页，P4）。旧的 `ClaudeBox.Control`（WinForms / Hyper-V）只作参考，不再作为主控件方向。
-- 默认策略不变：厂商 / 型号可原样展示，硬件编码默认隐藏；用户策略可以改为展示或修改后展示。设置页（P4）已落地：`src/claudebox-ui/` 可在云电脑用夹具打开，编辑全部 `wsl-box.yaml` 配置段与每字段身份策略。
+- 默认策略不变：厂商 / 型号可原样展示，硬件编码默认隐藏；用户策略可以改为展示或修改后展示。设置页（P4）已落地：`src/claudebox-ui/` 可在云电脑用夹具打开，编辑全部 `wsl-box.yaml` 配置段与每字段身份策略。P5 已把 dry-run 挂载计划与发行版生命周期预览接到设置页：只挂 `visible_dirs`，拒绝整挂宿主 `C:` / 整棵 Users / `/mnt/c`，不调用 `wsl.exe`。
 
 ## 工作约定
 

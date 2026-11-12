@@ -39,6 +39,8 @@ public:
     // Visible-dir editor helpers (P4 edit/save; P5 adds rejection).
     void setVisibleDirs(const QVector<claudebox::config::VisibleDir>& dirs);
     QVector<claudebox::config::VisibleDir> visibleDirsFromTable() const;
+    QString runtimePreview() const;
+    void refreshRuntimePreview();
 
     void setLineValue(const QString& object_name, const QString& value);
     QString lineValue(const QString& object_name) const;
@@ -69,6 +71,7 @@ private:
     QWidget* buildIdentityPage();
     QWidget* buildDesktopPage();
     QWidget* buildFeaturesPage();
+    QWidget* buildRuntimePage();
     void fillIdentityTable();
     int identityRow(const QString& canonical) const;
     void appendVisibleDirRow(const claudebox::config::VisibleDir& dir);
@@ -83,4 +86,5 @@ private:
     QLineEdit* blocklist_edit_ = nullptr;
     QLineEdit* extra_args_edit_ = nullptr;
     QLabel* status_label_ = nullptr;
+    QPlainTextEdit* runtime_preview_ = nullptr;
 };

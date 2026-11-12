@@ -1,5 +1,6 @@
 #include "claudebox/settings.hpp"
 #include "claudebox/collect.hpp"
+#include "claudebox/mount.hpp"
 
 
 #include <stdexcept>
@@ -104,6 +105,17 @@ SaveResult Session::save() {
             return result;
         }
         config.host_identity.hide_identifiers = true;
+        const auto mount_plan = claudebox::mount::plan_mounts(config);
+        if (!mount_plan.ok) {
+            result.error = mount_plan.errors.empty()
+                               ? "mount plan rejected the configuration"
+                               : mount_plan.errors.front();
+            for (size_t i = 1; i < mount_plan.errors.size(); ++i) {
+                result.error.append("\n");
+                result.error.append(mount_plan.errors[i]);
+            }
+            return result;
+        }
         std::filesystem::create_directories(paths.prefix / "var");
         std::filesystem::create_directories(paths.config.parent_path());
         config.save_file(paths.config);

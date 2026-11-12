@@ -57,3 +57,11 @@ bash tests/claudebox/test-p1-p2-p3-gate.sh
 ```bash
 bash tests/claudebox/test-p4-gate.sh
 ```
+
+## 运行时与目录隔离（P5）
+
+`claudebox/mount.hpp` 根据 `visible_dirs` 生成 dry-run 挂载计划，并规划发行版生命周期步骤（不调用 `wsl.exe`）。默认拒绝宿主系统盘根（`C:` / `C:\` / `C:/` / `/mnt/c`）、整棵 `C:\Users` 或整个用户配置目录，以及把 `/mnt/c` 当客机挂载点。客机路径必须落在 `/mnt/claude-box` 下。`exclude_host_system_drive: true` 与 `disable_automount: true` 必须保持开启。设置页保存前走同一套校验，拒绝时不会写坏配置。
+
+```bash
+bash tests/claudebox/test-p4-p5-gate.sh
+```

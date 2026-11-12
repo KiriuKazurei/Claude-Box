@@ -1,6 +1,7 @@
 #include "settings_window.hpp"
 
 #include "claudebox/identity.hpp"
+#include "claudebox/mount.hpp"
 
 #include <algorithm>
 
@@ -8,6 +9,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QFont>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -17,6 +19,7 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMessageBox>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSpinBox>
@@ -143,6 +146,7 @@ void SettingsWindow::buildUi() {
         u8("宿主身份"),
         u8("桌面"),
         u8("功能"),
+        u8("运行时预览"),
     };
     for (const auto& name : pages) {
         nav->addItem(name);
@@ -158,6 +162,7 @@ void SettingsWindow::buildUi() {
     stack->addWidget(buildIdentityPage());
     stack->addWidget(buildDesktopPage());
     stack->addWidget(buildFeaturesPage());
+    stack->addWidget(buildRuntimePage());
 
     connect(nav, &QListWidget::currentRowChanged, stack, &QStackedWidget::setCurrentIndex);
     nav->setCurrentRow(0);
@@ -388,6 +393,28 @@ QWidget* SettingsWindow::buildFeaturesPage() {
     return wrapScroll(page);
 }
 
+QWidget* SettingsWindow::buildRuntimePage() {
+    auto* page = new QWidget;
+    auto* layout = new QVBoxLayout(page);
+    layout->addWidget(noteLabel(
+        u8("根据当前设置生成发行版生命周期和可见目录挂载计划。这是 dry-run："
+           "不会调用 wsl.exe，也不会在这台云电脑上启用 WSL 或改写活的 /mnt/c。")));
+    runtime_preview_ = new QPlainTextEdit;
+    runtime_preview_->setObjectName(QStringLiteral("runtimePreview"));
+    runtime_preview_->setReadOnly(true);
+    runtime_preview_->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+    auto font = runtime_preview_->font();
+    font.setStyleHint(QFont::Monospace);
+    font.setFamily(QStringLiteral("monospace"));
+    runtime_preview_->setFont(font);
+    layout->addWidget(runtime_preview_, 1);
+    auto* refresh = new QPushButton(u8("刷新预览"));
+    refresh->setObjectName(QStringLiteral("refreshRuntimePreviewButton"));
+    layout->addWidget(refresh, 0, Qt::AlignLeft);
+    connect(refresh, &QPushButton::clicked, this, &SettingsWindow::refreshRuntimePreview);
+    return wrapScroll(page);
+}
+
 void SettingsWindow::fillIdentityTable() {
     identity_table_->setRowCount(0);
     std::vector<std::string> ids = canonical_field_ids();
@@ -537,6 +564,7 @@ void SettingsWindow::syncFromSession() {
     setChecked(QStringLiteral("oauthFingerprintCheck"),
                c.features.oauth_open_in_fingerprint_browser);
     setChecked(QStringLiteral("identityVaultCheck"), c.features.identity_vault);
+    refreshRuntimePreview();
 }
 
 bool SettingsWindow::harvestToSession(QString* error) {
@@ -720,6 +748,27 @@ QStringList SettingsWindow::listItems(const QString& object_name) const {
         }
     }
     return out;
+}
+
+QString SettingsWindow::runtimePreview() const {
+    return runtime_preview_ ? runtime_preview_->toPlainText() : QString{};
+}
+
+void SettingsWindow::refreshRuntimePreview() {
+    if (!runtime_preview_) {
+        return;
+    }
+    const auto previous = session_;
+    QString error;
+    const bool harvested = harvestToSession(&error);
+    const auto plan = claudebox::mount::plan_mounts(session_.config);
+    runtime_preview_->setPlainText(QString::fromStdString(claudebox::mount::format_plan(plan)));
+    if (!harvested && !error.isEmpty()) {
+        runtime_preview_->appendPlainText(QString::fromUtf8("\n表单还未填完：") + error);
+    }
+    if (!harvested) {
+        session_ = previous;
+    }
 }
 
 void SettingsWindow::onSave() {

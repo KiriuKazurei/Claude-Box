@@ -217,6 +217,48 @@ private slots:
         QVERIFY(reloaded.isChecked(QStringLiteral("excludeHostSystemDriveCheck")));
     }
 
+    void rejectsSystemDriveMountAndKeepsSavedConfig() {
+        seedPrefix(uniquePrefix("reject-c"));
+        SettingsWindow window(options_);
+        const auto before = read_text(options_.config);
+        window.setVisibleDirs({{"C:\\", "/mnt/claude-box/root", false}});
+        QString error;
+        QVERIFY(!window.saveToDisk(&error));
+        QVERIFY(error.contains(QString::fromUtf8("系统盘")) || error.contains(QStringLiteral("C:")));
+        QCOMPARE(QString::fromStdString(read_text(options_.config)),
+                 QString::fromStdString(before));
+        QVERIFY(!fs::exists(prefix_ / "var" / "host-identity.policy.yaml"));
+
+        window.setVisibleDirs({{"C:\\Users", "/mnt/claude-box/users", false}});
+        QVERIFY(!window.saveToDisk(&error));
+        QVERIFY(error.contains(QStringLiteral("Users")));
+        QCOMPARE(QString::fromStdString(read_text(options_.config)),
+                 QString::fromStdString(before));
+
+        window.setVisibleDirs({{"D:\\Projects\\demo", "/mnt/c", false}});
+        QVERIFY(!window.saveToDisk(&error));
+        QVERIFY(error.contains(QStringLiteral("C:")) || error.contains(QStringLiteral("/mnt/c")));
+
+        window.setVisibleDirs({{"D:\\Projects\\demo", "/mnt/claude-box/demo", false}});
+        window.setVisibleDirs(window.visibleDirsFromTable());  // no-op sanity
+        // replace with two allowed dirs
+        window.setVisibleDirs({
+            {"D:\\Projects\\demo", "/mnt/claude-box/demo", false},
+            {"E:\\Notes", "/mnt/claude-box/notes", true},
+        });
+        QVERIFY2(window.saveToDisk(&error), qPrintable(error));
+        const auto cfg = BoxConfig::load_file(options_.config);
+        QCOMPARE(cfg.visible_dirs.size(), size_t{2});
+        QCOMPARE(QString::fromStdString(cfg.visible_dirs[1].guest_path),
+                 QStringLiteral("/mnt/claude-box/notes"));
+        QVERIFY(window.runtimePreview().contains(QStringLiteral("D:\\Projects\\demo")) ||
+                window.runtimePreview().contains(QString::fromUtf8("校验通过")) ||
+                window.runtimePreview().contains(QStringLiteral("/mnt/claude-box/demo")));
+        window.refreshRuntimePreview();
+        QVERIFY(window.runtimePreview().contains(QString::fromUtf8("不会调用 wsl.exe")));
+        QVERIFY(window.runtimePreview().contains(QString::fromUtf8("校验通过")));
+    }
+
     void smokeConstructsWithoutCrash() {
         seedPrefix(uniquePrefix("smoke"));
         SettingsWindow window(options_);
