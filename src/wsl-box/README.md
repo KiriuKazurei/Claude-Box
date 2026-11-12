@@ -57,7 +57,7 @@ Anthropic：WSL 用户应装 Windows Desktop。本轨为不受支持的验证/�
 
 ## OAuth（OA）跳转：伴生指纹浏览器（默认开 · W6 接线）
 
-配置 `features.oauth_open_in_fingerprint_browser: true`。Claude 打开登录 / 授权页时，用独立指纹浏览器浏览，**不走宿主默认浏览器**。不改宿主时区语言。专篇：[docs/companion-fingerprint-browser.md](../../docs/companion-fingerprint-browser.md)；桩：`companion-browser/open-oauth-url.sh`。
+配置 `features.oauth_open_in_fingerprint_browser: true`。Claude 打开登录 / 授权页时，用独立指纹浏览器浏览，**不走宿主默认浏览器**。不改宿主时区语言。专篇：[docs/companion-fingerprint-browser.md](../../docs/companion-fingerprint-browser.md)；入口：`companion-browser/open-oauth-url.sh`（P8 已接到 C++ 核心与设置页；引擎未就绪时拒绝打开，不回退宿主浏览器）。
 
 ## 身份保险库（默认开 · 尽量不改宿主 · W7 接线）
 

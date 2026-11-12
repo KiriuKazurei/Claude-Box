@@ -48,6 +48,12 @@ public:
     QString spoofStatusText() const;
     void refreshSpoofStatus();
 
+    QString companionStatusText() const;
+    void refreshCompanionStatus();
+    // Open a fixture OA URL through the companion path (tests). Never
+    // falls back to the host default browser.
+    bool openCompanionUrl(const QString& url, QString* error, bool dry_run = false);
+
     // Injected address sets for the gateway-page dry-run preview (no real NIC).
     void setIpChangePreview(const QStringList& previous, const QStringList& current,
                             bool gateway_running = true);
@@ -75,6 +81,7 @@ private slots:
     void onRefreshGatewayStatus();
     void onRefreshSpoofStatus();
     void onRefreshIpChangeStatus();
+    void onRefreshCompanionStatus();
 
 private:
     void buildUi();
@@ -86,6 +93,7 @@ private:
     QWidget* buildIdentityPage();
     QWidget* buildDesktopPage();
     QWidget* buildFeaturesPage();
+    QWidget* buildCompanionPage();
     QWidget* buildRuntimePage();
     void fillIdentityTable();
     int identityRow(const QString& canonical) const;
@@ -105,6 +113,7 @@ private:
     QPlainTextEdit* gateway_status_ = nullptr;
     QPlainTextEdit* spoof_status_ = nullptr;
     QPlainTextEdit* ip_change_status_ = nullptr;
+    QPlainTextEdit* companion_status_ = nullptr;
     QStringList ip_prev_;
     QStringList ip_curr_;
     bool ip_gateway_running_ = true;

@@ -2,7 +2,7 @@
 
 C++20 + Qt 6 Widgets 设置中心。可以查看并修改 `wsl-box.yaml` 里已有的全部配置段，并用每字段策略决定宿主身份哪些原样展示、隐藏、或修改后再展示。
 
-保存只更新盒子前缀里的配置、`var/host-identity.policy.yaml` 和展示层，**不会**改宿主时区、语言或默认浏览器。网关页可以读写上游、监听、拦截名单和日志路径，并显示 dry-run 中继计划与本地 JSONL 最近活动；不会在这台云电脑上启动 gost。身份伪装页保存时会把盒子伪装值应用到前缀（session.env / spoof.env / 前缀内 localtime），不会改宿主时区或语言。伴生浏览器、Desktop 启停的运行时接线属于后续模块。
+保存只更新盒子前缀里的配置、`var/host-identity.policy.yaml` 和展示层，**不会**改宿主时区、语言或默认浏览器。网关页可以读写上游、监听、拦截名单和日志路径，并显示 dry-run 中继计划与本地 JSONL 最近活动；不会在这台云电脑上启动 gost。身份伪装页保存时会把盒子伪装值应用到前缀（session.env / spoof.env / 前缀内 localtime），不会改宿主时区或语言。伴生浏览器页显示引擎是否就绪、资料目录和唯一网关代理；打开授权页不会回退到宿主默认浏览器。Desktop 启停的运行时接线属于后续模块。
 
 ## 在云电脑上编译
 
@@ -52,6 +52,7 @@ QT_QPA_PLATFORM=offscreen ./src/claudebox-ui/build/claudebox-settings --prefix "
 - **宿主身份**：原始清单 + 每字段「原样展示 / 隐藏 / 修改后展示」。`hide_identifiers` 保持开启，不是整份公开开关
 - **桌面**：deb URL / 本地路径、启动命令、额外参数、asar 补丁
 - **功能**：排除宿主系统盘、computer use、伴生指纹浏览器、身份保险库。IP 波动策略在「网关」页配置，本页只作说明。
+- **伴生浏览器**：引擎是否就绪、独立资料目录、唯一网关代理、盒子伪装时区 / 语言。引擎未就绪时拒绝打开，不会改用宿主默认浏览器。不会自动下载引擎，也不会在云电脑上弹出真实窗口。
 - **运行时预览**：发行版生命周期与挂载计划的 dry-run 摘要（不调用 `wsl.exe`）
 
 ## 测试
@@ -63,4 +64,5 @@ bash tests/claudebox/test-p4-p5-gate.sh
 bash tests/claudebox/test-p6-gate.sh
 bash tests/claudebox/test-p7-gate.sh
 bash tests/claudebox/test-p7-ip-gate.sh
+bash tests/claudebox/test-p8-gate.sh
 ```

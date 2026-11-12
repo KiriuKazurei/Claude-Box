@@ -91,3 +91,18 @@ bash tests/claudebox/test-p7-gate.sh
 ```bash
 bash tests/claudebox/test-p7-ip-gate.sh
 ```
+
+## 伴生指纹浏览器（P8）
+
+`claudebox/companion.hpp` 规划并（在引擎就绪时）打开 OAuth / 授权 URL。出网走唯一网关代理，进程环境使用盒子伪装时区 / 语言，资料目录固定在 `<prefix>/var/companion-browser/profile`。设置页保存时会在前缀内安装 `bin/xdg-open`、`bin/www-browser` 和 `env/companion.env`（`BROWSER` 指向盒子内包装），不会改宿主默认浏览器。
+
+引擎来自 `CLAUDE_BOX_COMPANION_BROWSER` 或 `<prefix>/opt/companion-browser/engine`。本模块**不会**自动下载 Fingerprint Chromium，也不把引擎提交进 git。引擎未就绪、开关关闭、或唯一网关上游未配置时，打开失败并明确拒绝回退到宿主 `xdg-open` / `chrome` / `msedge`。
+
+```bash
+./src/claudebox/build/claudebox-companion status --prefix /tmp/claude-box-p8
+./src/claudebox/build/claudebox-companion open --prefix /tmp/claude-box-p8 \
+  --url 'https://claude.ai/login' --dry-run
+bash tests/claudebox/test-p8-gate.sh
+```
+
+客机入口仍是 `src/wsl-box/companion-browser/open-oauth-url.sh`。

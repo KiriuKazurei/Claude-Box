@@ -119,7 +119,7 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 
 ### OAuth（OA）跳转 · 伴生指纹浏览器（规划 · 默认开）
 
-和零决策（2026-11-11）：参考 [CCBaga](https://github.com/liseami/CCBaga)，学 **伴生指纹浏览器** 与 **身份保险库**，并尽可能不改宿主环境。Claude 跳出登录 / 授权页时，用独立 profile 的指纹浏览器打开，避免宿主 Chrome/Edge 侧泄漏；出网仍经唯一网关。配置 `features.oauth_open_in_fingerprint_browser: true`。专篇：[companion-fingerprint-browser.md](./companion-fingerprint-browser.md)；桩：`src/wsl-box/companion-browser/open-oauth-url.sh`。
+和零决策（2026-11-11）：参考 [CCBaga](https://github.com/liseami/CCBaga)，学 **伴生指纹浏览器** 与 **身份保险库**，并尽可能不改宿主环境。Claude 跳出登录 / 授权页时，用独立 profile 的指纹浏览器打开，避免宿主 Chrome/Edge 侧泄漏；出网仍经唯一网关。配置 `features.oauth_open_in_fingerprint_browser: true`。专篇：[companion-fingerprint-browser.md](./companion-fingerprint-browser.md)；入口：`src/wsl-box/companion-browser/open-oauth-url.sh` 与 C++ `claudebox::companion`（P8 已在云电脑以 dry-run / mock 引擎落地）。
 
 ### 身份保险库（规划 · 默认开 · 尽量不改宿主）
 
@@ -247,5 +247,5 @@ bash tests/wsl-box/test-linux-framework.sh   # 含 test-host-identity.sh
 - 配置示例：`src/wsl-box/config/wsl-box.example.yaml`
 - README：`src/wsl-box/README.md`
 - 可选 IP 波动杀进程：[kill-on-local-ip-change.md](./kill-on-local-ip-change.md)
-- 伴生指纹浏览器（OA）：[companion-fingerprint-browser.md](./companion-fingerprint-browser.md)；桩 `src/wsl-box/companion-browser/`
+- 伴生指纹浏览器（OA）：[companion-fingerprint-browser.md](./companion-fingerprint-browser.md)；`src/wsl-box/companion-browser/` 与 `claudebox/companion.hpp`（P8）
 - 身份保险库：[identity-vault.md](./identity-vault.md)；桩 `src/wsl-box/identity-vault/`

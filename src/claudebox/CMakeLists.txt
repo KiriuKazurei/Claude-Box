@@ -14,13 +14,20 @@ add_library(claudebox_identity
     src/gateway.cpp
     src/gateway_ip.cpp
     src/spoof.cpp
+    src/companion.cpp
 )
 target_include_directories(claudebox_identity PUBLIC include)
 target_compile_options(claudebox_identity PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_compile_definitions(claudebox_identity PRIVATE
+    CLAUDEBOX_OPEN_OAUTH_SCRIPT="${CMAKE_CURRENT_SOURCE_DIR}/../wsl-box/companion-browser/open-oauth-url.sh")
 
 add_executable(claudebox-identity src/identity_cli.cpp)
 target_link_libraries(claudebox-identity PRIVATE claudebox_identity)
 target_compile_options(claudebox-identity PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
+add_executable(claudebox-companion src/companion_cli.cpp)
+target_link_libraries(claudebox-companion PRIVATE claudebox_identity)
+target_compile_options(claudebox-companion PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_executable(test_identity tests/test_identity.cpp)
 target_link_libraries(test_identity PRIVATE claudebox_identity)
@@ -76,3 +83,11 @@ target_compile_options(test_gateway_ip PRIVATE -Wall -Wextra -Wpedantic -Werror)
 target_compile_definitions(test_gateway_ip PRIVATE
     CLAUDEBOX_EXAMPLE_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../wsl-box/config/wsl-box.example.yaml")
 add_test(NAME gateway_ip_change COMMAND test_gateway_ip)
+
+add_executable(test_companion tests/test_companion.cpp)
+target_link_libraries(test_companion PRIVATE claudebox_identity)
+target_compile_options(test_companion PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_compile_definitions(test_companion PRIVATE
+    CLAUDEBOX_EXAMPLE_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../wsl-box/config/wsl-box.example.yaml"
+    CLAUDEBOX_OPEN_OAUTH_SCRIPT="${CMAKE_CURRENT_SOURCE_DIR}/../wsl-box/companion-browser/open-oauth-url.sh")
+add_test(NAME companion_browser COMMAND test_companion)

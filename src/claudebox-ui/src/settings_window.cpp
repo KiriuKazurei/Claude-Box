@@ -7,6 +7,7 @@
 #include "claudebox/gateway.hpp"
 #include "claudebox/gateway_ip.hpp"
 #include "claudebox/spoof.hpp"
+#include "claudebox/companion.hpp"
 
 #include <algorithm>
 #include <vector>
@@ -152,6 +153,7 @@ void SettingsWindow::buildUi() {
         u8("宿主身份"),
         u8("桌面"),
         u8("功能"),
+        u8("伴生浏览器"),
         u8("运行时预览"),
     };
     for (const auto& name : pages) {
@@ -168,6 +170,7 @@ void SettingsWindow::buildUi() {
     stack->addWidget(buildIdentityPage());
     stack->addWidget(buildDesktopPage());
     stack->addWidget(buildFeaturesPage());
+    stack->addWidget(buildCompanionPage());
     stack->addWidget(buildRuntimePage());
 
     connect(nav, &QListWidget::currentRowChanged, stack, &QStackedWidget::setCurrentIndex);
@@ -466,7 +469,7 @@ QWidget* SettingsWindow::buildFeaturesPage() {
     auto* page = new QWidget;
     auto* layout = new QVBoxLayout(page);
     layout->addWidget(noteLabel(
-        u8("功能开关同样是配置项。伴生指纹浏览器、身份保险库的运行时接线属于后续模块。"
+        u8("功能开关同样是配置项。伴生指纹浏览器的状态与拦截预览在「伴生浏览器」页。身份保险库的运行时接线属于后续模块。"
            "本机 IP 波动时的网关断开与进程结束策略在「网关」页配置（同一模块，默认关），这里只作说明。")));
     auto add = [&](const QString& name, const QString& label) {
         auto* check = new QCheckBox(label);
@@ -485,6 +488,36 @@ QWidget* SettingsWindow::buildFeaturesPage() {
         u8("OAuth / 授权页用伴生指纹浏览器打开（不走宿主默认浏览器）"));
     add(QStringLiteral("identityVaultCheck"), u8("启用盒子内身份保险库"));
     layout->addStretch(1);
+    return wrapScroll(page);
+}
+
+QWidget* SettingsWindow::buildCompanionPage() {
+    auto* page = new QWidget;
+    auto* layout = new QVBoxLayout(page);
+    layout->addWidget(noteLabel(
+        u8("Claude 跳转 OAuth / 授权页时，必须用盒子内的伴生指纹浏览器打开，"
+           "不会回退到宿主默认浏览器（xdg-open / chrome / msedge）。"
+           "资料目录是盒子前缀下的独立 user-data-dir，时区 / 语言与盒子伪装值对齐，"
+           "出网仍走唯一网关。本页不会自动下载 Fingerprint Chromium，"
+           "也不会在这台云电脑上改宿主默认浏览器或弹出真实窗口。"
+           "开关与「功能」页是同一项 features.oauth_open_in_fingerprint_browser。")));
+    auto* statusBox = new QGroupBox(u8("状态与预览"));
+    auto* statusLayout = new QVBoxLayout(statusBox);
+    companion_status_ = new QPlainTextEdit;
+    companion_status_->setObjectName(QStringLiteral("companionStatusPreview"));
+    companion_status_->setReadOnly(true);
+    companion_status_->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+    companion_status_->setMinimumHeight(220);
+    auto font = companion_status_->font();
+    font.setStyleHint(QFont::Monospace);
+    font.setFamily(QStringLiteral("monospace"));
+    companion_status_->setFont(font);
+    statusLayout->addWidget(companion_status_, 1);
+    auto* refresh = new QPushButton(u8("刷新伴生浏览器状态"));
+    refresh->setObjectName(QStringLiteral("refreshCompanionStatusButton"));
+    statusLayout->addWidget(refresh, 0, Qt::AlignLeft);
+    layout->addWidget(statusBox, 1);
+    connect(refresh, &QPushButton::clicked, this, &SettingsWindow::onRefreshCompanionStatus);
     return wrapScroll(page);
 }
 
@@ -665,6 +698,7 @@ void SettingsWindow::syncFromSession() {
     refreshGatewayStatus();
     refreshSpoofStatus();
     refreshIpChangeStatus();
+    refreshCompanionStatus();
 }
 
 bool SettingsWindow::harvestToSession(QString* error) {
@@ -984,6 +1018,56 @@ void SettingsWindow::onRefreshIpChangeStatus() {
     refreshIpChangeStatus();
 }
 
+QString SettingsWindow::companionStatusText() const {
+    return companion_status_ ? companion_status_->toPlainText() : QString{};
+}
+
+void SettingsWindow::refreshCompanionStatus() {
+    if (!companion_status_) {
+        return;
+    }
+    const auto previous = session_;
+    QString error;
+    const bool harvested = harvestToSession(&error);
+    const auto planned =
+        claudebox::companion::plan(session_.config, session_.paths.prefix);
+    companion_status_->setPlainText(
+        QString::fromStdString(claudebox::companion::format_status(planned)));
+    if (!harvested && !error.isEmpty()) {
+        companion_status_->appendPlainText(QString::fromUtf8("\n表单还未填完：") + error);
+    }
+    if (!harvested) {
+        session_ = previous;
+    }
+}
+
+void SettingsWindow::onRefreshCompanionStatus() {
+    refreshCompanionStatus();
+}
+
+bool SettingsWindow::openCompanionUrl(const QString& url, QString* error, bool dry_run) {
+    const auto previous = session_;
+    QString harvest_error;
+    const bool harvested = harvestToSession(&harvest_error);
+    if (!harvested) {
+        if (error) {
+            *error = harvest_error;
+        }
+        session_ = previous;
+        return false;
+    }
+    const auto opened = claudebox::companion::open_url(
+        session_.config, session_.paths.prefix, url.toStdString(), dry_run);
+    if (!opened.ok) {
+        if (error) {
+            *error = QString::fromStdString(opened.error);
+        }
+        return false;
+    }
+    return true;
+}
+
+
 void SettingsWindow::onSave() {
     QString error;
     if (!saveToDisk(&error)) {
@@ -994,11 +1078,12 @@ void SettingsWindow::onSave() {
         return;
     }
     statusBar()->showMessage(
-        u8("已保存盒子配置、身份策略，并更新了展示层和盒子伪装值。"), 8000);
+        u8("已保存盒子配置、身份策略，并更新了展示层、盒子伪装值和伴生浏览器拦截。"), 8000);
     refreshRuntimePreview();
     refreshGatewayStatus();
     refreshSpoofStatus();
     refreshIpChangeStatus();
+    refreshCompanionStatus();
 }
 
 void SettingsWindow::onReload() {

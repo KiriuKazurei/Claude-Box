@@ -3,6 +3,7 @@
 #include "claudebox/config.hpp"
 #include "claudebox/identity.hpp"
 #include "claudebox/spoof.hpp"
+#include "claudebox/companion.hpp"
 #include "claudebox/gateway_ip.hpp"
 
 #include <QApplication>
@@ -470,6 +471,72 @@ private slots:
         const auto again = reloaded.ipChangeStatusText();
         QVERIFY2(again.contains(QStringLiteral("t=0 thread=gateway")), qPrintable(again));
         QVERIFY(again.contains(QStringLiteral("t=0 thread=process")));
+    }
+
+
+    void companionStatusAndOpenFixtureOauthUrl() {
+        seedPrefix(uniquePrefix("companion"));
+        SettingsWindow window(options_);
+        QVERIFY(window.findChild<QPlainTextEdit*>(QStringLiteral("companionStatusPreview")));
+        QVERIFY(window.findChild<QPushButton*>(QStringLiteral("refreshCompanionStatusButton")));
+        QVERIFY(window.isChecked(QStringLiteral("oauthFingerprintCheck")));
+
+        QString status = window.companionStatusText();
+        QVERIFY2(status.contains(QString::fromUtf8("未就绪")), qPrintable(status));
+        QVERIFY(status.contains(QString::fromUtf8("不会回退")) ||
+                status.contains(QString::fromUtf8("绝不会改用宿主")));
+        QVERIFY(status.contains(QStringLiteral("America/Los_Angeles")));
+        QVERIFY(status.contains(QStringLiteral("http://127.0.0.1:3080")));
+        QVERIFY(status.contains(QString::fromStdString(
+            (prefix_ / "var" / "companion-browser" / "profile").string())));
+
+        // Opening an OA URL with no engine must fail and must not use a host browser.
+        QString error;
+        QVERIFY(!window.openCompanionUrl(QStringLiteral("https://claude.ai/login"), &error, false));
+        QVERIFY2(error.contains(QStringLiteral("Refusing to open the host default browser")) ||
+                     error.contains(QString::fromUtf8("未就绪")) ||
+                     error.contains(QStringLiteral("not installed")),
+                 qPrintable(error));
+
+        // Drop a mock engine into the prefix and save so intercept wrappers exist.
+        const auto engine = prefix_ / "opt" / "companion-browser" / "engine";
+        const auto record = prefix_ / "record";
+        fs::create_directories(engine.parent_path());
+        fs::create_directories(record);
+        {
+            std::ofstream out(engine);
+            out << "#!/usr/bin/env bash\n"
+                << "set -euo pipefail\n"
+                << "printf '%s\\n' \"$@\" > \"" << record.string() << "/argv.txt\"\n"
+                << "env | sort > \"" << record.string() << "/env.txt\"\n"
+                << "echo mock-engine opened: \"$*\"\n";
+        }
+        fs::permissions(engine,
+                        fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec |
+                            fs::perms::others_read | fs::perms::others_exec,
+                        fs::perm_options::replace);
+
+        QVERIFY2(window.saveToDisk(&error), qPrintable(error));
+        QVERIFY(fs::exists(prefix_ / "bin" / "xdg-open"));
+        window.refreshCompanionStatus();
+        status = window.companionStatusText();
+        QVERIFY2(status.contains(QString::fromUtf8("已就绪")), qPrintable(status));
+        QVERIFY(status.contains(QString::fromStdString(engine.string())));
+        QVERIFY(status.contains(QStringLiteral("http://127.0.0.1:3080")));
+
+        QVERIFY2(window.openCompanionUrl(
+                     QStringLiteral("https://claude.ai/login?oauth=1"), &error, false),
+                 qPrintable(error));
+        QVERIFY(fs::exists(record / "argv.txt"));
+        const auto argv = QString::fromStdString(read_text(record / "argv.txt"));
+        QVERIFY2(argv.contains(QStringLiteral("https://claude.ai/login?oauth=1")),
+                 qPrintable(argv));
+        QVERIFY(argv.contains(QStringLiteral("--user-data-dir=")));
+        QVERIFY(argv.contains(QStringLiteral("--proxy-server=http://127.0.0.1:3080")));
+        const auto envtxt = QString::fromStdString(read_text(record / "env.txt"));
+        QVERIFY(envtxt.contains(QStringLiteral("TZ=America/Los_Angeles")));
+        QVERIFY(envtxt.contains(QStringLiteral("HTTP_PROXY=http://127.0.0.1:3080")));
+        QVERIFY(envtxt.contains(QStringLiteral("LANG=en_US.UTF-8")));
     }
 
     void smokeConstructsWithoutCrash() {

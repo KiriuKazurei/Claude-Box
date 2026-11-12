@@ -2,7 +2,7 @@
 
 > 决策日：2026-11-11（Asia/Tokyo）  
 > 决策者：和零（看过 [liseami/CCBaga](https://github.com/liseami/CCBaga) 后，只采纳这一条）  
-> 状态：**产品策略，规划实现**（W6）；与 [identity-vault.md](./identity-vault.md) 配套。不改宿主时区 / 语言 / 默认浏览器。
+> 状态：**已在云电脑落地（P8，dry-run）**；与 [identity-vault.md](./identity-vault.md) 配套。不改宿主时区 / 语言 / 默认浏览器。真机上的活体授权页与 Fingerprint Chromium 引擎仍须在 Win11 上核验。
 
 ## 只学这一条
 
@@ -40,16 +40,19 @@ Claude Desktop 登录或续权时，常会 **打开系统默认浏览器** 去�
 
 绿色核验、指纹轮换可以后做；本决策的硬目标是：**OA 不走宿主默认浏览器，避免从浏览器侧泄漏。** 不宣称匿名或账号一定过审。
 
-## 实现落点（尚未接线）
+## 实现落点（P8）
 
-拦截优先于「请用户自己改默认浏览器」：
+拦截优先于「请用户自己改默认浏览器」。云电脑上已接线：
 
-1. 发行版内接管 `xdg-open` / `BROWSER` / `www-browser`，OAuth 类 URL 交给伴生浏览器；其它 URL 策略另议（默认同样不落到宿主）。
-2. 若 Desktop 用 Electron `shell.openExternal` 直达宿主，再考虑发行版内包装或备用 hook（主路径仍是不改程序）。
-3. 引擎候选：独立 Chromium + 专用 profile；可参考 [Fingerprint Chromium](https://github.com/adryfish/fingerprint-chromium)（CCBaga-B 所用），**不**自动下载、不把引擎提交进 Git。
-4. 桩：`src/wsl-box/companion-browser/open-oauth-url.sh`。未安装引擎时清晰失败，不回退到宿主浏览器。
+1. 盒子前缀内接管 `xdg-open` / `BROWSER` / `www-browser`（`<prefix>/bin` + `env/companion.env`），OAuth 类 URL 交给伴生浏览器；其它 URL 同样不落到宿主，而是明确拒绝。
+2. 若 Desktop 用 Electron `shell.openExternal` 直达宿主，再考虑发行版内包装或备用 hook（主路径仍是不改程序；真机核验见 P11 清单）。
+3. 引擎候选：独立 Chromium + 专用 profile；可参考 [Fingerprint Chromium](https://github.com/adryfish/fingerprint-chromium)（CCBaga-B 所用），**不**自动下载、不把引擎提交进 Git。测试使用前缀内的 mock 引擎。
+4. 打开入口：`src/wsl-box/companion-browser/open-oauth-url.sh` 与 C++ `claudebox::companion`（`claudebox-companion`）。未安装引擎时清晰失败，不回退到宿主浏览器。设置页「伴生浏览器」显示引擎是否就绪、资料目录和唯一网关代理。
 
-## 验收（W6）
+## 验收（W6 / P8）
+
+云电脑（本阶段）已用 mock 引擎和缺失引擎用例证明：打开 OA URL 走伴生路径、引擎未就绪时非零退出且不回退宿主浏览器、profile 在盒子前缀下、计划环境含盒子伪装时区语言和唯一网关代理。真机上「进程是伴生浏览器而不是宿主 chrome.exe / msedge.exe、关网关则打不开授权页」仍待 Win11 核验。
+
 
 - 人为或脚本触发一次「打开 OA URL」：进程是伴生浏览器，**不是**宿主 `chrome.exe` / `msedge.exe`。
 - 伴生 profile 目录与宿主浏览器、Claude userData 分离。

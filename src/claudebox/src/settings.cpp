@@ -4,6 +4,7 @@
 #include "claudebox/gateway.hpp"
 #include "claudebox/gateway_ip.hpp"
 #include "claudebox/spoof.hpp"
+#include "claudebox/companion.hpp"
 
 
 #include <stdexcept>
@@ -173,6 +174,14 @@ SaveResult Session::save() {
         if (!spoofed.ok) {
             result.error = spoofed.error.empty() ? "failed to apply box spoof values"
                                                  : spoofed.error;
+            return result;
+        }
+        const auto intercept =
+            claudebox::companion::install_intercept(config, paths.prefix);
+        if (!intercept.ok) {
+            result.error = intercept.error.empty()
+                               ? "failed to install companion browser intercept"
+                               : intercept.error;
             return result;
         }
         result.ok = true;
