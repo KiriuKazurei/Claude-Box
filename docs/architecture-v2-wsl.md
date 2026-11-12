@@ -249,3 +249,4 @@ bash tests/wsl-box/test-linux-framework.sh   # 含 test-host-identity.sh
 - 可选 IP 波动杀进程：[kill-on-local-ip-change.md](./kill-on-local-ip-change.md)
 - 伴生指纹浏览器（OA）：[companion-fingerprint-browser.md](./companion-fingerprint-browser.md)；`src/wsl-box/companion-browser/` 与 `claudebox/companion.hpp`（P8）
 - 身份保险库：[identity-vault.md](./identity-vault.md)；`claudebox/vault.hpp` 与 `src/wsl-box/identity-vault/`（P9）
+- 接近 beta dry-run 验收：[near-beta-dry-run-acceptance.md](./near-beta-dry-run-acceptance.md)（P11；缺真机项不标成功）

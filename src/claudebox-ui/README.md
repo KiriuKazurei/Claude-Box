@@ -68,4 +68,5 @@ bash tests/claudebox/test-p7-ip-gate.sh
 bash tests/claudebox/test-p8-gate.sh
 bash tests/claudebox/test-p9-gate.sh
 bash tests/claudebox/test-p10-gate.sh
+bash tests/claudebox/test-p11-near-beta-gate.sh
 ```

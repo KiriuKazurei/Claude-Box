@@ -131,3 +131,11 @@ bash tests/claudebox/test-p9-gate.sh
 ./src/claudebox/build/claudebox-desktop start --prefix /tmp/claude-box-p10
 bash tests/claudebox/test-p10-gate.sh
 ```
+
+## 接近 beta 集成（P11）
+
+全链路 dry-run 清单：[docs/near-beta-dry-run-acceptance.md](../../docs/near-beta-dry-run-acceptance.md)。总门禁会再跑一遍 P1–P10；缺真机的项写在清单里，不标成功。本阶段不启动 W1。
+
+```bash
+bash tests/claudebox/test-p11-near-beta-gate.sh
+```
