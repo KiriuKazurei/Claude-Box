@@ -167,6 +167,15 @@ if ($runtime.GuestProxyUrl -ne 'http://192.168.87.1:3080') {
 if (-not (Test-ClaudeBoxGatewayHostBlocked -HostName 'www.google-analytics.com' -Blocklist @('google-analytics.com'))) {
     Write-Host 'FAIL blocklist suffix match'
     $failed++
+} elseif (-not (Test-ClaudeBoxGatewayHostBlocked -HostName 'sentry.io' -Blocklist @('sentry.io'))) {
+    Write-Host 'FAIL bare sentry.io should be blocked'
+    $failed++
+} elseif (-not (Test-ClaudeBoxGatewayHostBlocked -HostName 'o1158394.ingest.us.sentry.io' -Blocklist @('sentry.io'))) {
+    Write-Host 'FAIL ingest.us.sentry.io suffix under sentry.io'
+    $failed++
+} elseif (Test-ClaudeBoxGatewayHostBlocked -HostName 'api.anthropic.com' -Blocklist @('/api/event_logging', 'api.anthropic.com/api/event_logging')) {
+    Write-Host 'FAIL path rules must not be treated as host denials'
+    $failed++
 } else {
     Write-Host 'OK   Test-ClaudeBoxGatewayHostBlocked'
 }
@@ -198,11 +207,39 @@ if ($deny -notmatch '"action":"deny"') {
 }
 
 $plan = New-ClaudeBoxGatewayRelayPlan -Runtime $runtime
-if ($plan.CommandLine -notmatch 'gost' -or $plan.CommandLine -notmatch '192.168.87.1') {
+if ($plan.CommandLine -notmatch 'gost' -or $plan.CommandLine -notmatch '-C' -or $plan.GostYaml -notmatch '192.168.87.1') {
     Write-Host "FAIL relay plan: $($plan.CommandLine)"
     $failed++
 } else {
     Write-Host ("OK   New-ClaudeBoxGatewayRelayPlan {0}" -f $plan.CommandLine)
+}
+
+$defaultBlocklist = @(
+    'sentry.io',
+    'browser-intake-datadoghq.com',
+    'browser-intake-us3-datadoghq.com',
+    'browser-intake-us5-datadoghq.com',
+    'browser-intake-ap1-datadoghq.com',
+    'browser-intake-ap2-datadoghq.com',
+    'browser-intake-datadoghq.eu',
+    'browser-intake-ddog-gov.com',
+    'api.anthropic.com/api/event_logging',
+    '/api/event_logging',
+    '/api/v2/rum'
+)
+$defaultYml = Get-ClaudeBoxGostRelayYaml -ListenHost $runtime.ListenIp -ListenPort $runtime.ListenPort `
+    -UpstreamUrl $runtime.UpstreamUrl -Blocklist $defaultBlocklist
+if ($defaultYml -notmatch 'bypass-telemetry-hosts' -or $defaultYml -notmatch 'sentry.io' -or
+    $defaultYml -notmatch 'browser-intake-us3-datadoghq.com' -or $defaultYml -notmatch 'browser-intake-ddog-gov.com' -or
+    $defaultYml -notmatch 'PathRegexp' -or $defaultYml -notmatch '/api/event_logging' -or $defaultYml -notmatch '/api/v2/rum' -or
+    $defaultYml -notmatch 'hopGroup') {
+    Write-Host 'FAIL gost YAML missing default RE blocklist rules'
+    $failed++
+} elseif ($defaultYml -match '"api.anthropic.com"' -or $defaultYml -match '"\*\.api\.anthropic\.com"') {
+    Write-Host 'FAIL gost YAML must not host-deny api.anthropic.com'
+    $failed++
+} else {
+    Write-Host 'OK   Get-ClaudeBoxGostRelayYaml encodes default blocklist (no main-API host deny)'
 }
 
 $start = Start-ClaudeBoxGateway -Runtime $runtime -SkipProcessStart -WriteStartupLog

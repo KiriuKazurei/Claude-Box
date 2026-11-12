@@ -302,7 +302,8 @@ private slots:
         QVERIFY2(status.contains(QString::fromUtf8("已配置")), qPrintable(status));
         QVERIFY(status.contains(QStringLiteral("http://127.0.0.1:7890")));
         QVERIFY(status.contains(QStringLiteral("socks5://127.0.0.1:7891")));
-        QVERIFY(status.contains(QStringLiteral("gost -L http://0.0.0.0:3080")));
+        QVERIFY(status.contains(QStringLiteral("gost -C ")));
+        QVERIFY(status.contains(QStringLiteral("gost.relay.yml")));
         QVERIFY(status.contains(QString::fromUtf8("未启动 gost")));
         QVERIFY(status.contains(QString::fromStdString(default_log.string())));
         QVERIFY(status.contains(QString::fromUtf8("存在")));
@@ -322,7 +323,9 @@ private slots:
         status = window.gatewayStatusText();
         QVERIFY(status.contains(QStringLiteral("http://127.0.0.1:18080")));
         QVERIFY(status.contains(QString::fromStdString(alt_log.string())));
-        QVERIFY(status.contains(QStringLiteral("gost -L http://0.0.0.0:3080 -F http://127.0.0.1:18080")));
+        QVERIFY(status.contains(QStringLiteral("gost -C ")));
+        QVERIFY(status.contains(QStringLiteral("gost.relay.yml")));
+        QVERIFY(status.contains(QStringLiteral("http://127.0.0.1:18080")));
 
         QString error;
         QVERIFY2(window.saveToDisk(&error), qPrintable(error));

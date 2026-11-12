@@ -12,9 +12,10 @@ PORT="${CLAUDE_BOX_GATEWAY_PORT:-3080}"
 
 BLOCKLIST_RAW="${CLAUDE_BOX_BLOCKLIST:-}"
 if [[ -z "$BLOCKLIST_RAW" ]]; then
-  BLOCKLIST_LINES="   - *.ingest.us.sentry.io
-   - browser-intake-*.datadoghq.*
-   - path /api/event_logging on api.anthropic.com (careful: do not kill main API)"
+  BLOCKLIST_LINES="   - sentry.io / *.sentry.io (includes o1158394.ingest.us.sentry.io)
+   - browser-intake-datadoghq.com, browser-intake-us3/us5/ap1/ap2-datadoghq.com,
+     browser-intake-datadoghq.eu, browser-intake-ddog-gov.com
+   - path /api/event_logging and /api/v2/rum (do not host-deny api.anthropic.com)"
 else
   BLOCKLIST_LINES="$(printf '%s\n' "${BLOCKLIST_RAW//,/ }" | tr ' ' '\n' | sed '/^$/d' | sed 's/^/   - /')"
 fi

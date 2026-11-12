@@ -21,16 +21,33 @@ struct GatewayLogging {
     bool operator==(const GatewayLogging&) const = default;
 };
 
+// Default unique-gateway blocklist (RE §4 / SCOPE).
+// Host suffixes use the same rules as Test-ClaudeBoxGatewayHostBlocked:
+// "sentry.io" matches sentry.io and o1158394.ingest.us.sentry.io.
+// Entries that contain '/' are path-level (C++ request_blocked / gost hopGroup);
+// they must not become a host-wide deny of api.anthropic.com.
+inline std::vector<std::string> default_gateway_blocklist() {
+    return {
+        "sentry.io",
+        "browser-intake-datadoghq.com",
+        "browser-intake-us3-datadoghq.com",
+        "browser-intake-us5-datadoghq.com",
+        "browser-intake-ap1-datadoghq.com",
+        "browser-intake-ap2-datadoghq.com",
+        "browser-intake-datadoghq.eu",
+        "browser-intake-ddog-gov.com",
+        "api.anthropic.com/api/event_logging",
+        "/api/event_logging",
+        "/api/v2/rum",
+    };
+}
+
 struct GatewaySpec {
     std::string host = "auto";
     int http_port = 3080;
     std::string upstream_http = "http://127.0.0.1:7890";
     std::string upstream_socks5 = "socks5://127.0.0.1:7891";
-    std::vector<std::string> blocklist = {
-        "ingest.us.sentry.io",
-        "browser-intake-datadoghq.com",
-        "browser-intake-us5-datadoghq.com",
-    };
+    std::vector<std::string> blocklist = default_gateway_blocklist();
     GatewayLogging logging;
 
     bool operator==(const GatewaySpec&) const = default;

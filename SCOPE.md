@@ -22,7 +22,7 @@
 **主方案 · WSL2 + Linux Claude Desktop**
 
 - 专用发行版（如 `ClaudeBox`）；宿主 Win11 保持东八区 + 简中，只在发行版 / 进程内伪装。
-- 切断默认 `/mnt/c`，只挂 `visible_dirs`；网关拦 Sentry / Datadog RUM / `event_logging`。
+- 切断默认 `/mnt/c`，只挂 `visible_dirs`；网关拦 Sentry / Datadog RUM / `event_logging`（默认名单写入 gost YAML；HTTPS CONNECT 看不到路径，默认不做 TLS MITM）。
 - **官方风险**：Anthropic 建议 WSL 用户装 **Windows** Desktop；本路径不受官方支持。见 [docs/architecture-v2-wsl.md](./docs/architecture-v2-wsl.md)。
 - 代码：现有框架在 `src/wsl-box/`；C++/Qt 主控件按 [docs/framework-build-plan.md](./docs/framework-build-plan.md) 在云电脑推进到接近 beta。真机启用 WSL 仍需和零明确批准。
 

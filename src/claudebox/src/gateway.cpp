@@ -6,6 +6,7 @@
 #include <chrono>
 #include <ctime>
 #include <fstream>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -415,6 +416,186 @@ std::pair<std::string, std::string> choose_upstream(const claudebox::config::Gat
     return {"", ""};
 }
 
+
+std::string yaml_quote(std::string_view s) {
+    std::string out = "\"";
+    for (char c : s) {
+        if (c == '\\' || c == '"') {
+            out.push_back('\\');
+        }
+        out.push_back(c);
+    }
+    out.push_back('"');
+    return out;
+}
+
+std::string shell_quote(std::string_view s) {
+    std::string out = "'";
+    for (char c : s) {
+        if (c == '\'') {
+            out += "'\\''";
+        } else {
+            out.push_back(c);
+        }
+    }
+    out.push_back('\'');
+    return out;
+}
+
+std::string regex_escape(std::string_view s) {
+    static const std::string specials = ".^$*+?()[]{}|\\";
+    std::string out;
+    for (char c : s) {
+        if (specials.find(c) != std::string::npos) {
+            out.push_back('\\');
+        }
+        out.push_back(c);
+    }
+    return out;
+}
+
+// PathRegexp equivalent of C++ path_matches: exact path or next char is / ? #.
+// PathPrefix("/api/event_logging") would wrongly match /api/event_logging2.
+std::string path_boundary_regexp(std::string_view path) {
+    return "^" + regex_escape(path) + R"((?:/|\?|#|$))";
+}
+
+std::vector<std::string> gost_host_bypass_matchers(const std::vector<std::string>& blocklist) {
+    std::vector<std::string> out;
+    std::set<std::string> seen;
+    auto add = [&](const std::string& m) {
+        if (seen.insert(m).second) {
+            out.push_back(m);
+        }
+    };
+    for (const auto& raw : blocklist) {
+        const BlockRule rule = parse_block_rule(raw);
+        if (rule.host.empty() || !rule.path.empty()) {
+            continue;
+        }
+        add(rule.host);
+        if (rule.host.find('*') == std::string::npos && rule.host.front() != '.') {
+            add("*." + rule.host);
+        }
+    }
+    return out;
+}
+
+std::vector<std::string> gost_path_regexps(const std::vector<std::string>& blocklist) {
+    std::vector<std::string> out;
+    std::set<std::string> seen;
+    for (const auto& raw : blocklist) {
+        const BlockRule rule = parse_block_rule(raw);
+        if (rule.path.empty()) {
+            continue;
+        }
+        const std::string re = path_boundary_regexp(rule.path);
+        if (seen.insert(re).second) {
+            out.push_back(re);
+        }
+    }
+    return out;
+}
+
+std::string render_gost_relay_yaml(const std::string& listen_host, int listen_port,
+                                   const std::string& upstream_url,
+                                   const std::vector<std::string>& blocklist) {
+    const auto hosts = gost_host_bypass_matchers(blocklist);
+    const auto paths = gost_path_regexps(blocklist);
+    std::ostringstream yml;
+    yml << "# Claude Box unique-gateway plan for go-gost v3 (https://gost.run/).\n"
+        << "# Load with: gost -C <this-file>. Dry-run / plan only unless an operator starts it.\n"
+        << "# Requires go-gost 3.3.0+ when path rules are present (hopGroup + PathRegexp).\n"
+        << "#\n"
+        << "# Host-suffix denials use bypass in the default blacklist mode: a matching\n"
+        << "# destination is not forwarded (deny), not leaked around the proxy.\n"
+        << "# Path rules (event_logging, /api/v2/rum) use hopGroup matchers. PathRegexp\n"
+        << "# is used instead of PathPrefix so /api/event_logging2 and /api/v2/rumble\n"
+        << "# stay unblocked, matching C++ path_matches.\n"
+        << "# Residual: HTTPS CONNECT to api.anthropic.com does not expose the path\n"
+        << "# without TLS MITM, which is out of default/MVP. Host-level Sentry/Datadog\n"
+        << "# denies still apply to CONNECT/SNI. The main API is not host-denied.\n"
+        << "# Docs: https://v3.gost.run/en/concepts/bypass/\n"
+        << "#       https://v3.gost.run/en/concepts/hop-and-forwarder/\n\n";
+
+    if (!hosts.empty()) {
+        yml << "bypasses:\n"
+            << "  - name: bypass-telemetry-hosts\n"
+            << "    # default blacklist: match => terminate forwarding\n"
+            << "    matchers:\n";
+        for (const auto& m : hosts) {
+            yml << "      - " << yaml_quote(m) << "\n";
+        }
+        yml << "  - name: bypass-deny-all\n"
+            << "    matchers:\n"
+            << "      - \"0.0.0.0/0\"\n"
+            << "      - \"::/0\"\n"
+            << "      - \"*\"\n\n";
+    } else if (!paths.empty()) {
+        yml << "bypasses:\n"
+            << "  - name: bypass-deny-all\n"
+            << "    matchers:\n"
+            << "      - \"0.0.0.0/0\"\n"
+            << "      - \"::/0\"\n"
+            << "      - \"*\"\n\n";
+    }
+
+    if (!paths.empty()) {
+        yml << "hops:\n"
+            << "  - name: hop-deny-telemetry-paths\n"
+            << "    # Matching HTTP paths land here; bypass-all terminates forwarding.\n"
+            << "    bypass: bypass-deny-all\n"
+            << "    nodes:\n"
+            << "      - name: deny\n"
+            << "        addr: \"127.0.0.1:1\"\n"
+            << "        connector:\n"
+            << "          type: tcp\n"
+            << "        dialer:\n"
+            << "          type: tcp\n"
+            << "  - name: hop-upstream\n"
+            << "    nodes:\n"
+            << "      - name: upstream\n"
+            << "        addr: " << yaml_quote(upstream_url) << "\n"
+            << "        connector:\n"
+            << "          type: http\n"
+            << "        dialer:\n"
+            << "          type: tcp\n\n";
+    }
+
+    yml << "services:\n"
+        << "  - name: claude-box-in\n"
+        << "    addr: " << yaml_quote(listen_host + ":" + std::to_string(listen_port)) << "\n"
+        << "    handler:\n"
+        << "      type: http\n"
+        << "    listener:\n"
+        << "      type: tcp\n";
+    if (!hosts.empty()) {
+        yml << "    bypass: bypass-telemetry-hosts\n";
+    }
+    if (!paths.empty()) {
+        yml << "    forwarder:\n"
+            << "      hopGroup:\n"
+            << "        hops:\n"
+            << "          - hop: hop-deny-telemetry-paths\n"
+            << "            matcher:\n"
+            << "              rule: '";
+        for (std::size_t i = 0; i < paths.size(); ++i) {
+            if (i != 0) {
+                yml << " || ";
+            }
+            yml << "PathRegexp(\"" << paths[i] << "\")";
+        }
+        yml << "'\n"
+            << "          - hop: hop-upstream\n";
+    } else {
+        yml << "    forwarder:\n"
+            << "      nodes:\n"
+            << "        - name: upstream\n"
+            << "          addr: " << yaml_quote(upstream_url) << "\n";
+    }
+    return yml.str();
+}
+
 }  // namespace
 
 std::filesystem::path default_log_path(const std::filesystem::path& prefix) {
@@ -542,23 +723,33 @@ RelayPlan plan_relay(const claudebox::config::BoxConfig& config,
     plan.status = "plan-only";
     plan.tool = "gost";
     if (!plan.forward.empty()) {
-        plan.command_line = "gost -L " + plan.listen + " -F " + plan.forward;
-        std::ostringstream yml;
-        yml << "# Claude Box relay plan (gost). Dry-run only; not started here.\n"
-            << "# Install: place gost.exe in %LOCALAPPDATA%\\ClaudeBox\\bin\\ or PATH.\n"
-            << "# Docs: https://gost.run/\n\n"
-            << "services:\n"
-            << "  - name: claude-box-in\n"
-            << "    addr: \"" << plan.listen_host << ":" << plan.listen_port << "\"\n"
-            << "    handler:\n"
-            << "      type: http\n"
-            << "    listener:\n"
-            << "      type: tcp\n"
-            << "    forwarder:\n"
-            << "      nodes:\n"
-            << "        - name: upstream\n"
-            << "          addr: \"" << plan.forward << "\"\n";
-        plan.gost_yaml = yml.str();
+        plan.gost_yaml = render_gost_relay_yaml(plan.listen_host, plan.listen_port,
+                                               plan.forward, plan.blocklist);
+        if (!prefix.empty()) {
+            plan.gost_yaml_path = prefix / "var" / "gateway" / "gost.relay.yml";
+            try {
+                std::filesystem::create_directories(plan.gost_yaml_path.parent_path());
+                std::ofstream out(plan.gost_yaml_path, std::ios::binary | std::ios::trunc);
+                if (!out) {
+                    plan.errors.emplace_back("无法写入 gost 计划文件：" +
+                                             plan.gost_yaml_path.string());
+                    plan.ok = false;
+                } else {
+                    out << plan.gost_yaml;
+                    if (!out) {
+                        plan.errors.emplace_back("写入 gost 计划文件失败：" +
+                                                 plan.gost_yaml_path.string());
+                        plan.ok = false;
+                    }
+                }
+            } catch (const std::exception& ex) {
+                plan.errors.emplace_back(std::string("写入 gost 计划文件失败：") + ex.what());
+                plan.ok = false;
+            }
+            plan.command_line = "gost -C " + shell_quote(plan.gost_yaml_path.string());
+        } else {
+            plan.command_line = "gost -C gost.relay.yml";
+        }
     }
     return plan;
 }

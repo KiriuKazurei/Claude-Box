@@ -1,7 +1,55 @@
-# Example gost relay for Claude Box M2 (edit IPs/ports to match config.yaml).
-# Run roughly: gost -L http://192.168.87.1:3080 -F http://127.0.0.1:7890
-# Full YAML layout depends on gost major version — treat this as documentation.
+# Example go-gost v3 relay for Claude Box (edit IPs/ports to match config.yaml).
+# Load with: gost -C gost.relay.yml   (requires go-gost 3.3.0+ for hopGroup path rules)
+# Host-suffix denials use bypass in the default blacklist mode (match => not forwarded).
+# Path rules use hopGroup + PathRegexp. PathPrefix would wrongly match /api/event_logging2.
+# Residual: HTTPS CONNECT to api.anthropic.com does not expose the path without TLS MITM
+# (out of default/MVP). Host-level Sentry/Datadog denies still apply to CONNECT/SNI.
+# The main API host is not added as a host bypass matcher.
 # 待验证 on Win11 + Hyper-V Internal NIC.
+
+bypasses:
+  - name: bypass-telemetry-hosts
+    matchers:
+      - "sentry.io"
+      - "*.sentry.io"
+      - "browser-intake-datadoghq.com"
+      - "*.browser-intake-datadoghq.com"
+      - "browser-intake-us3-datadoghq.com"
+      - "*.browser-intake-us3-datadoghq.com"
+      - "browser-intake-us5-datadoghq.com"
+      - "*.browser-intake-us5-datadoghq.com"
+      - "browser-intake-ap1-datadoghq.com"
+      - "*.browser-intake-ap1-datadoghq.com"
+      - "browser-intake-ap2-datadoghq.com"
+      - "*.browser-intake-ap2-datadoghq.com"
+      - "browser-intake-datadoghq.eu"
+      - "*.browser-intake-datadoghq.eu"
+      - "browser-intake-ddog-gov.com"
+      - "*.browser-intake-ddog-gov.com"
+  - name: bypass-deny-all
+    matchers:
+      - "0.0.0.0/0"
+      - "::/0"
+      - "*"
+
+hops:
+  - name: hop-deny-telemetry-paths
+    bypass: bypass-deny-all
+    nodes:
+      - name: deny
+        addr: "127.0.0.1:1"
+        connector:
+          type: tcp
+        dialer:
+          type: tcp
+  - name: hop-upstream
+    nodes:
+      - name: upstream
+        addr: "http://127.0.0.1:7890"
+        connector:
+          type: http
+        dialer:
+          type: tcp
 
 services:
   - name: claude-box-in
@@ -10,7 +58,11 @@ services:
       type: http
     listener:
       type: tcp
+    bypass: bypass-telemetry-hosts
     forwarder:
-      nodes:
-        - name: clash-http
-          addr: "http://127.0.0.1:7890"
+      hopGroup:
+        hops:
+          - hop: hop-deny-telemetry-paths
+            matcher:
+              rule: 'PathRegexp("^/api/event_logging(?:/|\?|#|$)") || PathRegexp("^/api/v2/rum(?:/|\?|#|$)")'
+          - hop: hop-upstream

@@ -15,6 +15,7 @@
         'Test-ClaudeBoxGatewayHostBlocked',
         'Get-ClaudeBoxClashUpstreamNotes',
         'Find-ClaudeBoxGostExecutable',
+        'Get-ClaudeBoxGostRelayYaml',
         'New-ClaudeBoxGatewayRelayPlan',
         'Save-ClaudeBoxGatewayRuntime',
         'Start-ClaudeBoxGateway',

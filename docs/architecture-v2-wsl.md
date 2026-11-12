@@ -101,10 +101,11 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 
 - 网关听宿主 `0.0.0.0` 或 WSL 可见的宿主机 IP（`host.docker.internal` 类：`$(ip route | awk '/default/{print $3}')`）。
 - 发行版导出 `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY`/`NO_PROXY=localhost,127.0.0.1`。
-- **blocklist 最低集**（可按 JSONL 增删）：
-  - `*.ingest.us.sentry.io` / Sentry 相关
-  - Datadog RUM `browser-intake-*.datadoghq.*` / `/api/v2/rum`
-  - `api.anthropic.com` 的 `/api/event_logging`（路径级；勿误杀主 API——优先用代理 ACL / SNI 规则精细化）
+- **blocklist 最低集**（可按 JSONL 增删；默认名单与 RE §4 对齐）：
+  - `sentry.io` / `*.sentry.io`（含 `o1158394.ingest.us.sentry.io`）
+  - Datadog RUM：`browser-intake-datadoghq.com`、`browser-intake-us3/us5/ap1/ap2-datadoghq.com`、`browser-intake-datadoghq.eu`、`browser-intake-ddog-gov.com`
+  - 路径级：`/api/event_logging`、`/api/v2/rum`（边界匹配，不拦 `/api/event_logging2`；勿把整个 `api.anthropic.com` 写成主机拒绝）
+  - gost 计划（`gost -C` YAML）用 bypass 拦主机、hopGroup PathRegexp 表示路径。残留：HTTPS CONNECT 看不到路径，默认不做 TLS MITM。
 - 可选：发行版 `nftables` 禁止非代理出网（强化版，W1+）。
 - 云电脑上的 C++ 核心（`claudebox::gateway`）与设置页共用同一套校验 / 中继计划 / JSONL 状态：空日志路径落在盒子前缀 `var/logs/gateway.jsonl`，不使用宿主 `%LOCALAPPDATA%`。这是 dry-run，不启动 gost，也不绑定 Win11 网卡。Win11 上的实际中继启动仍走 `ClaudeBox.Gateway`。
 

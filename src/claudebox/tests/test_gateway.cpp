@@ -132,35 +132,37 @@ static void test_default_log_path_under_prefix() {
 static void test_blocklist_matches_powershell_suffix() {
     const auto cfg = BoxConfig::load_file(example_config());
     const auto& list = cfg.gateway.blocklist;
-    CHECK(list.size() >= 3);
-    CHECK_EQ(list[0], std::string("ingest.us.sentry.io"));
+    CHECK(list.size() >= 11);
+    CHECK_EQ(list[0], std::string("sentry.io"));
 
-    // Suffix match used by Test-ClaudeBoxGatewayHostBlocked.
+    // Suffix match used by Test-ClaudeBoxGatewayHostBlocked (host-only entries).
+    CHECK(host_blocked("sentry.io", list));
     CHECK(host_blocked("ingest.us.sentry.io", list));
     CHECK(host_blocked("o1158394.ingest.us.sentry.io", list));
     CHECK(host_blocked("O1158394.Ingest.US.Sentry.IO.", list));
     CHECK(host_blocked("browser-intake-datadoghq.com", list));
+    CHECK(host_blocked("browser-intake-us3-datadoghq.com", list));
     CHECK(host_blocked("browser-intake-us5-datadoghq.com", list));
+    CHECK(host_blocked("browser-intake-ap1-datadoghq.com", list));
+    CHECK(host_blocked("browser-intake-ap2-datadoghq.com", list));
+    CHECK(host_blocked("browser-intake-datadoghq.eu", list));
+    CHECK(host_blocked("browser-intake-ddog-gov.com", list));
     CHECK(!host_blocked("datadoghq.com", list));
-    CHECK(!host_blocked("sentry.io", list));
     CHECK(!host_blocked("api.anthropic.com", list));
     CHECK(!host_blocked("", list));
 
-    // Default example list is host-only: a normal Anthropic chat path is not
-    // a blanket deny. event_logging is also not denied until a path rule exists.
+    // Path rules block event_logging and /api/v2/rum. The main API stays open.
+    // Path-boundary: /api/event_logging2 and /api/v2/rumble are not blocked.
     CHECK(!request_blocked("api.anthropic.com", "/v1/messages", list));
-    CHECK(!request_blocked("api.anthropic.com", "/api/event_logging", list));
+    CHECK(request_blocked("api.anthropic.com", "/api/event_logging", list));
+    CHECK(request_blocked("api.anthropic.com", "/api/event_logging/", list));
+    CHECK(request_blocked("api.anthropic.com", "/api/event_logging?x=1", list));
+    CHECK(request_blocked("api.anthropic.com", "/api/event_logging/v2/batch", list));
+    CHECK(!request_blocked("api.anthropic.com", "/api/event_logging2", list));
+    CHECK(request_blocked("api.anthropic.com", "/api/v2/rum", list));
+    CHECK(request_blocked("claude.ai", "/api/v2/rum", list));
+    CHECK(!request_blocked("api.anthropic.com", "/api/v2/rumble", list));
     CHECK(!host_blocked("api.anthropic.com", list));
-
-    std::vector<std::string> with_path = list;
-    with_path.emplace_back("api.anthropic.com/api/event_logging");
-    CHECK(request_blocked("api.anthropic.com", "/api/event_logging", with_path));
-    CHECK(request_blocked("api.anthropic.com", "/api/event_logging/", with_path));
-    CHECK(request_blocked("api.anthropic.com", "/api/event_logging?x=1", with_path));
-    CHECK(!request_blocked("api.anthropic.com", "/v1/messages", with_path));
-    CHECK(!request_blocked("api.anthropic.com", "/api/event_logging2", with_path));
-    // Path-level entries must not become a host blanket deny.
-    CHECK(!host_blocked("api.anthropic.com", with_path));
 
     const std::vector<std::string> path_only = {"/api/v2/rum"};
     CHECK(request_blocked("browser-intake-datadoghq.com", "/api/v2/rum", path_only));
@@ -180,8 +182,27 @@ static void test_plan_and_validate() {
     CHECK_EQ(plan.upstream_http, std::string("http://127.0.0.1:7890"));
     CHECK_EQ(plan.upstream_socks5, std::string("socks5://127.0.0.1:7891"));
     CHECK_EQ(plan.upstream_url, std::string("http://127.0.0.1:7890"));
-    CHECK_EQ(plan.command_line, std::string("gost -L http://0.0.0.0:3080 -F http://127.0.0.1:7890"));
+    CHECK(plan.command_line.find("gost -C ") == 0);
+    CHECK(contains(plan.command_line, "gost.relay.yml"));
+    CHECK_EQ(plan.gost_yaml_path, prefix / "var" / "gateway" / "gost.relay.yml");
+    CHECK(std::filesystem::is_regular_file(plan.gost_yaml_path));
     CHECK(contains(plan.gost_yaml, "127.0.0.1:7890"));
+    CHECK(contains(plan.gost_yaml, "0.0.0.0:3080"));
+    CHECK(contains(plan.gost_yaml, "bypass-telemetry-hosts"));
+    CHECK(contains(plan.gost_yaml, "sentry.io"));
+    CHECK(contains(plan.gost_yaml, "*.sentry.io"));
+    CHECK(contains(plan.gost_yaml, "browser-intake-us3-datadoghq.com"));
+    CHECK(contains(plan.gost_yaml, "browser-intake-ap1-datadoghq.com"));
+    CHECK(contains(plan.gost_yaml, "browser-intake-ap2-datadoghq.com"));
+    CHECK(contains(plan.gost_yaml, "browser-intake-datadoghq.eu"));
+    CHECK(contains(plan.gost_yaml, "browser-intake-ddog-gov.com"));
+    CHECK(contains(plan.gost_yaml, "PathRegexp"));
+    CHECK(contains(plan.gost_yaml, "/api/event_logging"));
+    CHECK(contains(plan.gost_yaml, "/api/v2/rum"));
+    CHECK(contains(plan.gost_yaml, "hopGroup"));
+    // Must not blanket-deny the main Anthropic API as a host bypass matcher.
+    CHECK(!contains(plan.gost_yaml, "\"api.anthropic.com\""));
+    CHECK(!contains(plan.gost_yaml, "\"*.api.anthropic.com\""));
     CHECK_EQ(plan.logging_path, default_log_path(prefix));
     CHECK(plan.logging_enabled);
 
@@ -192,8 +213,9 @@ static void test_plan_and_validate() {
     CHECK(socks_plan.ok);
     CHECK_EQ(socks_plan.listen, std::string("http://172.20.0.1:4080"));
     CHECK_EQ(socks_plan.upstream_url, std::string("socks5://127.0.0.1:7891"));
-    CHECK_EQ(socks_plan.command_line,
-             std::string("gost -L http://172.20.0.1:4080 -F socks5://127.0.0.1:7891"));
+    CHECK(socks_plan.command_line.find("gost -C ") == 0);
+    CHECK(contains(socks_plan.gost_yaml, "172.20.0.1:4080"));
+    CHECK(contains(socks_plan.gost_yaml, "socks5://127.0.0.1:7891"));
 
     auto bad = cfg;
     bad.gateway.upstream_http.clear();
@@ -295,7 +317,8 @@ static void test_status_summary() {
     const auto text = format_status(missing);
     CHECK(contains(text, "已配置"));
     CHECK(contains(text, "http://127.0.0.1:7890"));
-    CHECK(contains(text, "gost -L http://0.0.0.0:3080"));
+    CHECK(contains(text, "gost -C "));
+    CHECK(contains(text, "gost.relay.yml"));
     CHECK(contains(text, "未启动 gost"));
     CHECK(contains(text, "尚不存在"));
     CHECK(!contains(text, "Win11 网关进程已启动"));

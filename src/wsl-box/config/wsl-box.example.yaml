@@ -21,10 +21,21 @@ spec:
     # 上游常为 Clash；由宿主 ClaudeBox.Gateway / gost 转发
     upstream_http: "http://127.0.0.1:7890"
     upstream_socks5: "socks5://127.0.0.1:7891"
+    # RE §4: host suffixes + path rules. sentry.io covers *.sentry.io
+    # (including o1158394.ingest.us.sentry.io). Path entries must not
+    # blanket-deny api.anthropic.com (the main API stays allowed).
     blocklist:
-      - ingest.us.sentry.io
+      - sentry.io
       - browser-intake-datadoghq.com
+      - browser-intake-us3-datadoghq.com
       - browser-intake-us5-datadoghq.com
+      - browser-intake-ap1-datadoghq.com
+      - browser-intake-ap2-datadoghq.com
+      - browser-intake-datadoghq.eu
+      - browser-intake-ddog-gov.com
+      - api.anthropic.com/api/event_logging
+      - /api/event_logging
+      - /api/v2/rum
     logging:
       enabled: true
       path: ""   # 空：C++ / 设置页解析为盒子前缀 var/logs/gateway.jsonl；Win11 上的 ClaudeBox.Gateway 仍可用 LocalAppData 默认路径

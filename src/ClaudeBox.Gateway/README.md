@@ -84,7 +84,7 @@ Import-Module .\src\ClaudeBox.Gateway\ClaudeBox.Gateway.psd1
 pwsh -File tests/Test-Structure.ps1
 ```
 
-设置页与 C++ 核心（`claudebox::gateway`，P6）复用本模块的合同：上游 HTTP/SOCKS5、gost `-L`/`-F` 中继计划、JSONL 字段、以及 `Test-ClaudeBoxGatewayHostBlocked` 的后缀匹配。控件负责配置与状态预览；空日志路径在盒子前缀下解析为 `var/logs/gateway.jsonl`，而不是本机 `%LOCALAPPDATA%`。路径级拦截（例如 `api.anthropic.com/api/event_logging`）由 C++ 匹配器额外支持，避免把整个 `api.anthropic.com` 主 API 一票否决。本仓库的 C++ 路径**不会**重写或替代 gost，也**不会**在云电脑上启动 Win11 网关进程。
+设置页与 C++ 核心（`claudebox::gateway`，P6）复用本模块的合同：上游 HTTP/SOCKS5、gost `-C <gost.relay.yml>` 中继计划、JSONL 字段、以及 `Test-ClaudeBoxGatewayHostBlocked` 的后缀匹配（只看主机规则；含 `/` 的路径规则会跳过）。控件负责配置与状态预览；空日志路径在盒子前缀下解析为 `var/logs/gateway.jsonl`，而不是本机 `%LOCALAPPDATA%`。生成的 go-gost v3 YAML 用 bypass 黑名单拦截 Sentry / Datadog 主机，用 hopGroup + PathRegexp 表示 `/api/event_logging` 与 `/api/v2/rum`（不用 PathPrefix，以免误伤 `/api/event_logging2`）。残留：HTTPS CONNECT 到 `api.anthropic.com` 在不做 TLS MITM（默认/MVP 不做）时看不到路径，因此路径级规则只对可见 HTTP 路径生效；主机级 Sentry/Datadog 对 CONNECT/SNI 仍然有效。主 API 主机不会被写成 host bypass。`Test-ClaudeBoxGatewayHostBlocked` 仍只做主机后缀匹配。本仓库的 C++ 路径**不会**重写或替代 gost，也**不会**在云电脑上启动 Win11 网关进程。
 
 ```bash
 bash tests/claudebox/test-p6-gate.sh

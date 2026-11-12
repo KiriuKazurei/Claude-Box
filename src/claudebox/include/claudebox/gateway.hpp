@@ -58,6 +58,7 @@ struct RelayPlan {
     std::string forward;
     std::string command_line;
     std::string gost_yaml;
+    std::filesystem::path gost_yaml_path;
     std::vector<std::string> blocklist;
     bool logging_enabled = true;
     std::filesystem::path logging_path;
@@ -117,7 +118,8 @@ bool request_blocked(std::string_view host, std::string_view path,
 Validation validate(const claudebox::config::BoxConfig& config,
                     const std::filesystem::path& prefix);
 
-// Dry-run relay / listen plan (gost -L / -F). Never starts a process.
+// Dry-run relay plan (gost -C <prefix>/var/gateway/gost.relay.yml).
+// Encodes the blocklist as go-gost v3 bypass + hopGroup PathRegexp. Never starts a process.
 RelayPlan plan_relay(const claudebox::config::BoxConfig& config,
                      const std::filesystem::path& prefix);
 

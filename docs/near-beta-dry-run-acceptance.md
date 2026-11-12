@@ -30,7 +30,7 @@ ALL GREEN (P11 near-beta dry-run integration: P1–P10 proven on this cloud comp
 | **P3 展示层接线** | `apply-host-identity` / 校验走 C++ 引擎；采集仍只写原始清单。隐藏 / 修改后展示 / 选择展示用例通过。`hide_identifiers` 仍是过渡开关，关掉不会一键放开整份清单。既有 linux framework smoke 仍绿。 | `test-p1-p2-p3-gate.sh`、`test-linux-framework.sh` |
 | **P4 设置页控件壳** | C++20 + Qt 6 设置页可编译；无头测试可编辑全部 `wsl-box.yaml` 段与每字段身份策略并保存再读回。不改宿主时区 / 语言 / 默认浏览器。 | `test-p4-gate.sh`、`settings_ui` |
 | **P5 运行时与可见目录** | 挂载计划只挂 `visible_dirs`，拒绝整挂 `C:`、整棵 `C:\Users` 或 `/mnt/c`；拒绝时不写坏配置。发行版生命周期是 dry-run，不调用 `wsl.exe`。 | `test-p4-p5-gate.sh`、`mount_plan` |
-| **P6 唯一网关** | 可读写上游 HTTP/SOCKS5 与日志路径；无上游或地址不合法时不保存。计划含监听、gost 中继、blocklist（拦 Sentry/Datadog，不整段拦 `api.anthropic.com` 对话接口）。JSONL 可读。不在云电脑启动 gost。既有 gateway smoke 仍绿。 | `test-p6-gate.sh`、`gateway_plan` |
+| **P6 唯一网关** | 可读写上游 HTTP/SOCKS5 与日志路径；无上游或地址不合法时不保存。计划含监听、`gost -C` YAML 中继（bypass + hopGroup PathRegexp 编码默认 blocklist：Sentry/Datadog 主机与 `/api/event_logging`、`/api/v2/rum`），不整段拦 `api.anthropic.com` 对话接口。HTTPS CONNECT 路径残留（无 TLS MITM）须如实记录。JSONL 可读。不在云电脑启动生产 gost / 不改系统代理。既有 gateway smoke 仍绿。 | `test-p6-gate.sh`、`gateway_plan` |
 | **P7 时区 / 语言伪装** | 设置页展示并保存的是盒子伪装值。应用到前缀 `env/spoof.env`、`env/session.env`、前缀内 `etc/localtime`。Intl 探针看到配置中的假时区（如 `America/Los_Angeles`），不是云电脑的 `Asia/Tokyo`。不改宿主 `/etc/localtime`。 | `test-p7-gate.sh`、`spoof_plan` |
 | **IP 波动（网关模块）** | 开关默认关，在网关页。打开后，地址集合变化时断开网关与礼貌关进程作为两条线**同时**启动，互不等待；grace 后再强杀。只做 dry-run，不读真网卡，不停活 gost，不杀真实进程。 | `test-p7-ip-gate.sh`、`gateway_ip_change` |
 | **P8 伴生指纹浏览器** | 打开夹具 OA URL 走伴生路径，不回退宿主默认浏览器。引擎未就绪时非零退出并报错。资料目录在盒子前缀下，与宿主 Chrome/Edge、Claude userData 分离。计划环境含盒子伪装时区 / 语言和唯一网关代理。不自动下载 Fingerprint Chromium。设置页显示引擎、资料目录和代理。 | `test-p8-gate.sh`、`companion_browser` |

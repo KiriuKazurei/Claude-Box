@@ -373,7 +373,11 @@ function Test-ClaudeBoxGatewayHostBlocked {
     $h = $HostName.Trim().TrimEnd('.').ToLowerInvariant()
     foreach ($b in $Blocklist) {
         if ([string]::IsNullOrWhiteSpace($b)) { continue }
-        $pat = $b.Trim().TrimStart('.').ToLowerInvariant()
+        $pat = $b.Trim().ToLowerInvariant()
+        # Path-level rules are enforced by C++ request_blocked / gost hopGroup,
+        # not by this host-suffix helper. Do not treat "/api/..." as a hostname.
+        if ($pat.Contains('/')) { continue }
+        $pat = $pat.TrimStart('.')
         if ($h -eq $pat -or $h.EndsWith('.' + $pat)) { return $true }
     }
     return $false
@@ -435,6 +439,164 @@ function Find-ClaudeBoxGostExecutable {
     return $null
 }
 
+function Get-ClaudeBoxGostRelayYaml {
+    <#
+    .SYNOPSIS
+      Render a go-gost v3 YAML plan that encodes the unique-gateway blocklist.
+      Host-suffix denials use bypass (default blacklist = terminate forwarding).
+      Path rules use hopGroup + PathRegexp (HTTP paths only). HTTPS CONNECT to
+      api.anthropic.com does not expose the path without TLS MITM (out of MVP).
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $ListenHost,
+        [int] $ListenPort,
+        [string] $UpstreamUrl,
+        [string[]] $Blocklist = @()
+    )
+
+    function Escape-GostRegex([string] $s) {
+        return [regex]::Replace($s, '([.^$*+?()\[\]{}|\\])', '\$1')
+    }
+    function Quote-Yaml([string] $s) {
+        return '"' + ($s -replace '\\', '\\' -replace '"', '\"') + '"'
+    }
+
+    $hosts = New-Object System.Collections.Generic.List[string]
+    $seenHost = @{}
+    $paths = New-Object System.Collections.Generic.List[string]
+    $seenPath = @{}
+    foreach ($raw in @($Blocklist)) {
+        if ([string]::IsNullOrWhiteSpace($raw)) { continue }
+        $item = $raw.Trim()
+        $hostPart = $item
+        $pathPart = ''
+        if ($item.StartsWith('/')) {
+            $hostPart = ''
+            $pathPart = $item
+        } elseif ($item.Contains('/')) {
+            $slash = $item.IndexOf('/')
+            $hostPart = $item.Substring(0, $slash)
+            $pathPart = $item.Substring($slash)
+        }
+        # Strip a leading scheme if a full URL slipped in.
+        if ($hostPart -match '://') {
+            $hostPart = $hostPart.Substring($hostPart.IndexOf('://') + 3)
+        }
+        if ($hostPart -match ':') {
+            $hostPart = $hostPart.Split(':')[0]
+        }
+        if ($pathPart -match '[\?#]') {
+            $pathPart = $pathPart.Split('?')[0].Split('#')[0]
+        }
+        if (-not [string]::IsNullOrWhiteSpace($pathPart)) {
+            $re = '^' + (Escape-GostRegex $pathPart) + '(?:/|\?|#|$)'
+            if (-not $seenPath.ContainsKey($re)) {
+                $seenPath[$re] = $true
+                $paths.Add($re) | Out-Null
+            }
+            continue
+        }
+        if (-not [string]::IsNullOrWhiteSpace($hostPart)) {
+            $h = $hostPart.Trim().TrimEnd('.').ToLowerInvariant()
+            if (-not $seenHost.ContainsKey($h)) {
+                $seenHost[$h] = $true
+                $hosts.Add($h) | Out-Null
+            }
+            if ($h -notmatch '\*' -and -not $h.StartsWith('.')) {
+                $wild = '*.' + $h
+                if (-not $seenHost.ContainsKey($wild)) {
+                    $seenHost[$wild] = $true
+                    $hosts.Add($wild) | Out-Null
+                }
+            }
+        }
+    }
+
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.AppendLine('# Claude Box unique-gateway plan for go-gost v3 (https://gost.run/).')
+    [void]$sb.AppendLine('# Load with: gost -C <this-file>. Requires go-gost 3.3.0+ when path rules are present.')
+    [void]$sb.AppendLine('# Host-suffix denials use bypass in the default blacklist mode (match => not forwarded).')
+    [void]$sb.AppendLine('# Path rules use hopGroup + PathRegexp (not PathPrefix, which would match /api/event_logging2).')
+    [void]$sb.AppendLine('# Residual: HTTPS CONNECT to api.anthropic.com does not expose the path without TLS MITM (out of MVP).')
+    [void]$sb.AppendLine('# The main Anthropic API host is not added as a host bypass matcher.')
+    [void]$sb.AppendLine('')
+
+    if ($hosts.Count -gt 0 -or $paths.Count -gt 0) {
+        [void]$sb.AppendLine('bypasses:')
+        if ($hosts.Count -gt 0) {
+            [void]$sb.AppendLine('  - name: bypass-telemetry-hosts')
+            [void]$sb.AppendLine('    # default blacklist: match => terminate forwarding')
+            [void]$sb.AppendLine('    matchers:')
+            foreach ($m in $hosts) {
+                [void]$sb.AppendLine(('      - {0}' -f (Quote-Yaml $m)))
+            }
+        }
+        if ($paths.Count -gt 0) {
+            [void]$sb.AppendLine('  - name: bypass-deny-all')
+            [void]$sb.AppendLine('    matchers:')
+            [void]$sb.AppendLine('      - "0.0.0.0/0"')
+            [void]$sb.AppendLine('      - "::/0"')
+            [void]$sb.AppendLine('      - "*"')
+        }
+        [void]$sb.AppendLine('')
+    }
+
+    if ($paths.Count -gt 0) {
+        [void]$sb.AppendLine('hops:')
+        [void]$sb.AppendLine('  - name: hop-deny-telemetry-paths')
+        [void]$sb.AppendLine('    # Matching HTTP paths land here; bypass-all terminates forwarding.')
+        [void]$sb.AppendLine('    bypass: bypass-deny-all')
+        [void]$sb.AppendLine('    nodes:')
+        [void]$sb.AppendLine('      - name: deny')
+        [void]$sb.AppendLine('        addr: "127.0.0.1:1"')
+        [void]$sb.AppendLine('        connector:')
+        [void]$sb.AppendLine('          type: tcp')
+        [void]$sb.AppendLine('        dialer:')
+        [void]$sb.AppendLine('          type: tcp')
+        [void]$sb.AppendLine('  - name: hop-upstream')
+        [void]$sb.AppendLine('    nodes:')
+        [void]$sb.AppendLine('      - name: upstream')
+        [void]$sb.AppendLine(('        addr: {0}' -f (Quote-Yaml $UpstreamUrl)))
+        [void]$sb.AppendLine('        connector:')
+        [void]$sb.AppendLine('          type: http')
+        [void]$sb.AppendLine('        dialer:')
+        [void]$sb.AppendLine('          type: tcp')
+        [void]$sb.AppendLine('')
+    }
+
+    [void]$sb.AppendLine('services:')
+    [void]$sb.AppendLine('  - name: claude-box-in')
+    [void]$sb.AppendLine(('    addr: {0}' -f (Quote-Yaml ("{0}:{1}" -f $ListenHost, $ListenPort))))
+    [void]$sb.AppendLine('    handler:')
+    [void]$sb.AppendLine('      type: http')
+    [void]$sb.AppendLine('    listener:')
+    [void]$sb.AppendLine('      type: tcp')
+    if ($hosts.Count -gt 0) {
+        [void]$sb.AppendLine('    bypass: bypass-telemetry-hosts')
+    }
+    if ($paths.Count -gt 0) {
+        $ruleParts = @()
+        foreach ($re in $paths) {
+            $ruleParts += ('PathRegexp("{0}")' -f $re)
+        }
+        $rule = $ruleParts -join ' || '
+        [void]$sb.AppendLine('    forwarder:')
+        [void]$sb.AppendLine('      hopGroup:')
+        [void]$sb.AppendLine('        hops:')
+        [void]$sb.AppendLine('          - hop: hop-deny-telemetry-paths')
+        [void]$sb.AppendLine('            matcher:')
+        [void]$sb.AppendLine(("              rule: '{0}'" -f $rule))
+        [void]$sb.AppendLine('          - hop: hop-upstream')
+    } else {
+        [void]$sb.AppendLine('    forwarder:')
+        [void]$sb.AppendLine('      nodes:')
+        [void]$sb.AppendLine('        - name: upstream')
+        [void]$sb.AppendLine(('          addr: {0}' -f (Quote-Yaml $UpstreamUrl)))
+    }
+    return $sb.ToString()
+}
+
 function New-ClaudeBoxGatewayRelayPlan {
     <#
     .SYNOPSIS
@@ -448,30 +610,16 @@ function New-ClaudeBoxGatewayRelayPlan {
 
     $listen = 'http://{0}:{1}' -f $Runtime.ListenIp, $Runtime.ListenPort
     $forward = $Runtime.UpstreamUrl
-    # gost -L <local> -F <forward>
-    $args = @('-L', $listen, '-F', $forward)
-    $cmdline = 'gost ' + ($args -join ' ')
-
-    $yml = @"
-# Claude Box M2 relay plan (gost). 待验证 on real Hyper-V.
-# Install: place gost.exe in %LOCALAPPDATA%\ClaudeBox\bin\ or PATH.
-# Docs: https://gost.run/
-
-services:
-  - name: claude-box-in
-    addr: "$($Runtime.ListenIp):$($Runtime.ListenPort)"
-    handler:
-      type: http
-    listener:
-      type: tcp
-    forwarder:
-      nodes:
-        - name: upstream
-          addr: "$forward"
-
-# Logging: prefer Claude Box JSONL via Write-ClaudeBoxGatewayLogEntry /
-# Start-ClaudeBoxGateway -WriteStartupLog. gost native log is optional.
-"@
+    $ymlPath = Join-Path (Get-ClaudeBoxGatewayStateDir) 'gost.relay.yml'
+    $blocklist = @()
+    if ($Runtime.PSObject.Properties['Blocklist'] -and $null -ne $Runtime.Blocklist) {
+        $blocklist = @($Runtime.Blocklist)
+    }
+    $yml = Get-ClaudeBoxGostRelayYaml -ListenHost $Runtime.ListenIp -ListenPort $Runtime.ListenPort `
+        -UpstreamUrl $forward -Blocklist $blocklist
+    # go-gost v3: load the YAML that encodes host bypass + hopGroup path rules.
+    $args = @('-C', $ymlPath)
+    $cmdline = 'gost -C ' + $ymlPath
 
     $guestNet = @"
 # Guest network (run inside Hyper-V Windows guest) — 待验证
@@ -489,6 +637,7 @@ services:
         Arguments       = $args
         CommandLine     = $cmdline
         GostYaml        = $yml
+        GostYamlPath    = $ymlPath
         GuestNetworkHint = $guestNet
         GostPath        = (Find-ClaudeBoxGostExecutable)
         Status          = 'plan-only'
@@ -797,6 +946,7 @@ Export-ModuleMember -Function @(
     'Test-ClaudeBoxGatewayHostBlocked',
     'Get-ClaudeBoxClashUpstreamNotes',
     'Find-ClaudeBoxGostExecutable',
+    'Get-ClaudeBoxGostRelayYaml',
     'New-ClaudeBoxGatewayRelayPlan',
     'Save-ClaudeBoxGatewayRuntime',
     'Start-ClaudeBoxGateway',

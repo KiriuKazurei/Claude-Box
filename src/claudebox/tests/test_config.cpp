@@ -2,6 +2,7 @@
 #include "claudebox/identity.hpp"
 #include "claudebox/settings.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -107,8 +108,17 @@ static void test_load_example() {
     CHECK_EQ(cfg.gateway.http_port, 3080);
     CHECK_EQ(cfg.gateway.upstream_http, std::string("http://127.0.0.1:7890"));
     CHECK_EQ(cfg.gateway.upstream_socks5, std::string("socks5://127.0.0.1:7891"));
-    CHECK_EQ(cfg.gateway.blocklist.size(), size_t{3});
-    CHECK_EQ(cfg.gateway.blocklist[0], std::string("ingest.us.sentry.io"));
+    CHECK(cfg.gateway.blocklist == BoxConfig::defaults().gateway.blocklist);
+    CHECK(std::find(cfg.gateway.blocklist.begin(), cfg.gateway.blocklist.end(),
+                    "sentry.io") != cfg.gateway.blocklist.end());
+    CHECK(std::find(cfg.gateway.blocklist.begin(), cfg.gateway.blocklist.end(),
+                    "browser-intake-us3-datadoghq.com") != cfg.gateway.blocklist.end());
+    CHECK(std::find(cfg.gateway.blocklist.begin(), cfg.gateway.blocklist.end(),
+                    "browser-intake-ddog-gov.com") != cfg.gateway.blocklist.end());
+    CHECK(std::find(cfg.gateway.blocklist.begin(), cfg.gateway.blocklist.end(),
+                    "/api/event_logging") != cfg.gateway.blocklist.end());
+    CHECK(std::find(cfg.gateway.blocklist.begin(), cfg.gateway.blocklist.end(),
+                    "/api/v2/rum") != cfg.gateway.blocklist.end());
     CHECK(cfg.gateway.logging.enabled);
     CHECK_EQ(cfg.gateway.logging.path, std::string(""));
     CHECK_EQ(cfg.visible_dirs.size(), size_t{1});
