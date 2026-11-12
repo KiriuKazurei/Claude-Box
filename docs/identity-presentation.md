@@ -33,7 +33,9 @@ Claude Box 部署之后会采集这台电脑的有关信息，在设置页列出
 
 ## 与现行实现的过渡
 
-当前 `src/wsl-box` 仍按 SCOPE v0.3.3 的硬开关工作：`hide_identifiers: true` 时编码不得进入展示层，关掉则 apply / verify 失败；导出脚本只写厂商 / 型号。这套合同在 P1 策略引擎接上之前保持有效。接上之后，硬开关让位于「默认隐藏编码 + 设置页按字段授权」；测试必须同时覆盖默认隐藏、选择展示、修改后展示，以及原始清单不得泄漏进展示层。
+P3 已把展示层生成接到 C++ 策略引擎：`apply-host-identity.sh` 调用 `claudebox-identity apply`，`verify-host-identity.sh` 按同一份策略校验。默认策略与上表一致。
+
+`hide_identifiers: true` 仍是过渡约束，设为 false 时 apply / verify 必须失败。它**不是**「把原始清单全部公开」的开关；要原样展示或修改后再展示某个字段，写入每字段策略（`CLAUDE_BOX_IDENTITY_POLICY` 或盒子内 `var/host-identity.policy.yaml`）。宿主导出脚本目前仍只写厂商 / 型号。设置页（P4）尚未落地。测试覆盖默认隐藏、选择展示、修改后展示，以及被隐藏或已覆盖的原始值不得泄漏进展示层。
 
 ## 设置页（P4）
 

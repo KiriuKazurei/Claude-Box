@@ -21,6 +21,7 @@ $need = @(
   'guest/apply-host-identity.sh',
   'guest/verify-host-identity.sh',
   'guest/lib/host-identity.py',
+  'guest/lib/identity-engine.sh',
   'host/Export-ClaudeBoxHostIdentity.ps1',
   'linux/Install-ClaudeBoxFramework.sh',
   'linux/Run-Smoke.sh',

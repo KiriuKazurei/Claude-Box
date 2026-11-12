@@ -39,3 +39,13 @@ bash tests/claudebox/test-p1-gate.sh
 
 bash tests/claudebox/test-p1-p2-gate.sh
 ```
+
+## 展示层接线（P3）
+
+`src/wsl-box/guest/apply-host-identity.sh` 和 `verify-host-identity.sh` 调用本目录编出的 `claudebox-identity`，按用户策略写展示层。采集（collect）仍然只写原始清单。
+
+查找二进制的顺序：`CLAUDE_BOX_IDENTITY_BIN`，`$CLAUDE_BOX_PREFIX/bin/claudebox-identity`（`Install-ClaudeBoxFramework.sh` 会编译并拷到这里），仓库内 `src/claudebox/build/claudebox-identity`。可选策略文件：`CLAUDE_BOX_IDENTITY_POLICY` 或 `$CLAUDE_BOX_PREFIX/var/host-identity.policy.yaml`；省略则用默认策略。
+
+```bash
+bash tests/claudebox/test-p1-p2-p3-gate.sh
+```

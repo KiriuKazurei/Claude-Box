@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Host identity policy for Claude Box.
+"""Legacy host-identity helpers (kept for structure tests and reference).
 
-May publish manufacturer + product/model to the guest presentation layer.
-Must never publish hardware identifiers (serials, UUIDs, MAC, disk serial,
-CPU processor ID, MachineGuid, device instance paths, or similar).
+P3: apply-host-identity.sh and verify-host-identity.sh generate and check
+the presentation layer through the C++ claudebox-identity engine. Do not
+reintroduce a parallel policy implementation here.
 
 This module does not hide that the environment is WSL/QEMU; kernel names
 such as microsoft-standard-WSL2 are out of scope and are left visible.

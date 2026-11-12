@@ -152,14 +152,15 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 
 `spec.host_identity`（见 `src/wsl-box/config/wsl-box.example.yaml`）：
 
-**现行实现（P1 接上之前仍有效）**
+**现行实现（P3 已接线）**
 
-- `expose_real_model: true`：允许发布厂商 / 型号
+- `expose_real_model: true`：允许发布厂商 / 型号（默认策略为 expose）
 - `manufacturer` / `product`：可选预填；真机上通常由导出脚本写入，不必把真实型号提交进仓库
-- `hide_identifiers: true`：当前仍是硬开关。设为 false 时 apply / verify 必须失败
+- `hide_identifiers: true`：过渡约束，设为 false 时 apply / verify 必须失败。不是「公开全部编码」的开关；按字段授权走策略文件
 - `hidden_identifier_keys`：文档 + 校验清单（serial、UUID、MAC、disk_serial、cpu_id、machine_guid、device_instance_path 等）
+- 每字段策略：`CLAUDE_BOX_IDENTITY_POLICY` 或 `$CLAUDE_BOX_PREFIX/var/host-identity.policy.yaml`（`expose` / `hide` / `override`）
 
-**目标形态（P1–P4）**
+**目标形态（P4 设置页仍待做）**
 
 - 部署时把完整采集结果写入盒子内**原始清单**（不自动交给 Claude，不进 git）
 - 每字段模式为 `expose` / `hide` / `override`；设置页编辑并保存
@@ -176,19 +177,20 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 
 | 路径 | 内容 |
 |------|------|
-| `$CLAUDE_BOX_PREFIX/env/host-model.env` | 按策略发布的厂商 / 型号等（现行为 `CLAUDE_BOX_HOST_MANUFACTURER` / `CLAUDE_BOX_HOST_PRODUCT`） |
+| `$CLAUDE_BOX_PREFIX/env/host-model.env` | 按策略发布的字段（默认含 `CLAUDE_BOX_HOST_MANUFACTURER` / `CLAUDE_BOX_HOST_PRODUCT`） |
 | `$CLAUDE_BOX_PREFIX/presentation/dmi/id/sys_vendor` | 厂商（若策略为展示或修改后展示） |
 | `$CLAUDE_BOX_PREFIX/presentation/dmi/id/product_name` | 产品型号（若策略为展示或修改后展示） |
-| `$CLAUDE_BOX_PREFIX/var/host-identity.allowed.yaml` | 按策略生成的展示副本 |
-| `$CLAUDE_BOX_PREFIX/var/host-inventory.raw.yaml`（规划） | 原始清单；不得被当作展示层读取 |
+| `$CLAUDE_BOX_PREFIX/var/host-identity.presented.yaml` | 按策略生成的完整展示副本 |
+| `$CLAUDE_BOX_PREFIX/var/host-identity.allowed.yaml` | 向后兼容的厂商 / 型号摘要 |
+| `$CLAUDE_BOX_PREFIX/var/host-inventory.raw.yaml` | 原始清单；不得被当作展示层读取 |
 
-现行 `guest/apply-host-identity.sh` 会丢弃清单里的禁止字段，并拒绝把看起来像 UUID / MAC 的值当作型号发布。`guest/verify-host-identity.sh` 在禁止值出现在展示层或 advertised env、或夹具序列号泄漏时失败。既有 TZ / locale 探针仍须通过。P3 接线后，verify 改为对照用户策略：隐藏字段不得出现在展示层；`expose` / `override` 的字段必须与策略一致。
+`guest/apply-host-identity.sh` 调用 C++ `claudebox-identity` 按策略写展示层，并拒绝把看起来像 UUID / MAC 的值当作型号发布。`guest/verify-host-identity.sh` 对照同一份策略：隐藏字段（及 override 前的原始值）不得出现在展示层；`expose` / `override` 的字段必须与策略一致。既有 TZ / locale 探针仍须通过。
 
 真机 WSL 若以后要做 DMI overlay，也必须遵守同一合同：只发布策略允许的字段；仍不以「隐藏 WSL」为目标。
 
 ### 尚未完成
 
-- 未实现设置页与按字段授权引擎（见 [framework-build-plan.md](./framework-build-plan.md) P1–P4）
+- 未实现设置页（见 [framework-build-plan.md](./framework-build-plan.md) P4）。P1–P3 策略引擎、采集器与展示层接线已落地
 - 未在和零的 Win11 上启用 WSL，也未把展示层接到真实 Claude Desktop 进程
 - 未改写活的 `/sys/class/dmi`（dry-run 明确不做）
 - 未屏蔽 WSL 内核标识（不会当作缺陷来「修」）

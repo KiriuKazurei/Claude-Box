@@ -22,6 +22,7 @@ need=(
   src/wsl-box/guest/apply-host-identity.sh
   src/wsl-box/guest/verify-host-identity.sh
   src/wsl-box/guest/lib/host-identity.py
+  src/wsl-box/guest/lib/identity-engine.sh
   src/wsl-box/host/Export-ClaudeBoxHostIdentity.ps1
   src/wsl-box/linux/Install-ClaudeBoxFramework.sh
   tests/wsl-box/fixtures/host-inventory.raw.yaml

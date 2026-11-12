@@ -86,14 +86,16 @@ case "${CLAUDE_BOX_HIDE_IDENTIFIERS:-true}" in
   *) claude_box_die "hide_identifiers must stay true (got ${CLAUDE_BOX_HIDE_IDENTIFIERS})" ;;
 esac
 
-# Presentation layer must exist after apply-spoof (even if model is empty)
+# Presentation layer must exist after apply-spoof (even if model is empty).
+# Default policy may leave sys_vendor / product_name unwritten when no model
+# is configured; the contract is the generated env + presented.yaml.
 if [[ ! -f "$PREFIX/env/host-model.env" ]]; then
   claude_box_die "host-model.env missing after apply-spoof"
 fi
-if [[ ! -f "$PREFIX/presentation/dmi/id/sys_vendor" || ! -f "$PREFIX/presentation/dmi/id/product_name" ]]; then
-  claude_box_die "DMI presentation tree missing after apply-spoof"
+if [[ ! -d "$PREFIX/presentation" || ! -f "$PREFIX/var/host-identity.presented.yaml" ]]; then
+  claude_box_die "presentation layer missing after apply-spoof"
 fi
-# Identifier files must not be published
+# Identifier files must not be published under the default policy
 for bad in product_serial product_uuid board_serial chassis_serial chassis_uuid; do
   if [[ -e "$PREFIX/presentation/dmi/id/$bad" ]]; then
     claude_box_die "forbidden DMI file published: $bad"

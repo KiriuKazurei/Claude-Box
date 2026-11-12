@@ -1,25 +1,32 @@
 #!/usr/bin/env bash
-# Confirm the presentation layer shows manufacturer/product and does not leak
-# hardware identifiers. Also fails if hide_identifiers is not true, or if a
-# raw host inventory/fixture serial still appears in advertised env/files.
+# Confirm the presentation layer matches the identity policy and does not leak
+# hidden values (including original values replaced by override).
+# Delegates to the C++ claudebox-identity engine (P3).
 # Reads the presentation layer, not live /sys/class/dmi.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREFIX="${CLAUDE_BOX_PREFIX:-/opt/claude-box}"
-PY="$SCRIPT_DIR/lib/host-identity.py"
+# shellcheck source=lib/identity-engine.sh
+source "$SCRIPT_DIR/lib/identity-engine.sh"
 
-if [[ ! -f "$PY" ]]; then
-  echo "error: missing $PY" >&2
-  exit 1
+claudebox_require_hide_identifiers
+BIN="$(claudebox_find_identity_bin "$SCRIPT_DIR")"
+INVENTORY="$(claudebox_resolve_inventory "$PREFIX")"
+POLICY="$(claudebox_resolve_policy "$PREFIX" || true)"
+
+args=(verify --inventory "$INVENTORY" --prefix "$PREFIX")
+if [[ -n "${POLICY:-}" ]]; then
+  args+=(--policy "$POLICY")
 fi
 
-case "${CLAUDE_BOX_HIDE_IDENTIFIERS:-true}" in
-  true|True|TRUE|1|yes|Yes|on|On) ;;
-  *)
-    echo "error: host_identity.hide_identifiers must stay true (got ${CLAUDE_BOX_HIDE_IDENTIFIERS})" >&2
-    exit 1
-    ;;
-esac
-
-exec python3 "$PY" verify "$PREFIX"
+if ! "$BIN" "${args[@]}"; then
+  echo "[claude-box] verify-host-identity FAIL" >&2
+  exit 1
+fi
+echo "[claude-box] verify-host-identity OK"
+if [[ -n "${POLICY:-}" ]]; then
+  echo "[claude-box] policy=$POLICY"
+else
+  echo "[claude-box] policy=defaults; hidden identifier values not present in presentation"
+fi

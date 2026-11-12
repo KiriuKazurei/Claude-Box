@@ -8,7 +8,7 @@ Manufacturer: Contoso Computers
 product: ContosoBook 15 G3
 Model: ContosoBook 15 G3
 
-# Forbidden identifiers (must never appear in the presentation layer):
+# Identifiers (hidden under the default policy; must not leak unless a test policy exposes them):
 serial: SN-C0NT0S0-9F3A-0001
 SerialNumber: SN-C0NT0S0-9F3A-0001
 chassis_uuid: 550e8400-e29b-41d4-a716-446655440000

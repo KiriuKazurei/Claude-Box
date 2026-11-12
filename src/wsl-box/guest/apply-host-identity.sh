@@ -1,27 +1,33 @@
 #!/usr/bin/env bash
-# Publish allowed host manufacturer + product into the guest presentation layer.
-# Drops hardware identifiers. Does not rewrite live /sys/class/dmi (needs
-# privileges / is kernel-backed; this layer is the contract Desktop/verify read).
-# Idempotent. Not a VM-hiding tool.
+# Publish policy-approved host fields into the guest presentation layer.
+# Delegates generation to the C++ claudebox-identity engine (P3).
+# Collect writes only the raw inventory; this script writes the presentation.
+# Does not rewrite live /sys/class/dmi. Idempotent. Not a VM-hiding tool.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREFIX="${CLAUDE_BOX_PREFIX:-/opt/claude-box}"
-PY="$SCRIPT_DIR/lib/host-identity.py"
+# shellcheck source=lib/identity-engine.sh
+source "$SCRIPT_DIR/lib/identity-engine.sh"
 
-if [[ ! -f "$PY" ]]; then
-  echo "error: missing $PY" >&2
-  exit 1
-fi
-
-# hide_identifiers is a hard constraint (default true).
-case "${CLAUDE_BOX_HIDE_IDENTIFIERS:-true}" in
-  true|True|TRUE|1|yes|Yes|on|On) ;;
-  *)
-    echo "error: host_identity.hide_identifiers must stay true (got ${CLAUDE_BOX_HIDE_IDENTIFIERS})" >&2
-    exit 1
-    ;;
-esac
+claudebox_require_hide_identifiers
+BIN="$(claudebox_find_identity_bin "$SCRIPT_DIR")"
+INVENTORY="$(claudebox_resolve_inventory "$PREFIX")"
+POLICY="$(claudebox_resolve_policy "$PREFIX" || true)"
 
 mkdir -p "$PREFIX/env" "$PREFIX/var" "$PREFIX/presentation/dmi/id"
-exec python3 "$PY" apply "$PREFIX"
+
+args=(apply --inventory "$INVENTORY" --prefix "$PREFIX")
+if [[ -n "${POLICY:-}" ]]; then
+  args+=(--policy "$POLICY")
+fi
+
+"$BIN" "${args[@]}"
+echo "[claude-box] host-identity applied via $BIN"
+if [[ -n "${POLICY:-}" ]]; then
+  echo "[claude-box] policy=$POLICY"
+else
+  echo "[claude-box] policy=defaults (manufacturer/product may be shown; identifiers hidden)"
+fi
+echo "[claude-box] presentation → $PREFIX/presentation/dmi/id"
+echo "[claude-box] note: live /sys/class/dmi is not rewritten"

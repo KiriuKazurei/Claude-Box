@@ -30,7 +30,7 @@ bash tests/wsl-box/test-linux-framework.sh
 - 前缀默认：`<repo>/.run/claude-box`（已 gitignore）；可用 `CLAUDE_BOX_PREFIX` / `CLAUDE_BOX_CONFIG` 覆盖。
 - 读 `config/wsl-box.yaml`（若有）否则 `wsl-box.example.yaml`。
 - `apply-spoof` 无 root 时只做 session env；写 `/etc/localtime` 需 `sudo`。
-- 身份展示：现行 `apply-host-identity.sh` 把厂商 / 型号写到 `$CLAUDE_BOX_PREFIX/env/host-model.env` 和 `presentation/dmi/id/`（`sys_vendor`、`product_name`）。硬件编码默认不写入展示层，`hide_identifiers` 在策略引擎接上前必须为 true。目标形态是设置页按字段授权，见 [docs/identity-presentation.md](../../docs/identity-presentation.md) 与 [docs/framework-build-plan.md](../../docs/framework-build-plan.md)。
+- 身份展示（P3）：`apply-host-identity.sh` 调用 C++ `claudebox-identity`，按策略把字段写到 `$CLAUDE_BOX_PREFIX/env/host-model.env`、`var/host-identity.presented.yaml` 和 `presentation/dmi/id/`。默认仍是厂商 / 型号可展示、硬件编码隐藏。`hide_identifiers: true` 是过渡约束（设为 false 仍会失败，避免整份原始清单被放开）；要展示或修改某个编码，请用每字段策略文件（`CLAUDE_BOX_IDENTITY_POLICY` 或 `var/host-identity.policy.yaml`）。二进制由 `Install-ClaudeBoxFramework.sh` 编到 `$CLAUDE_BOX_PREFIX/bin/claudebox-identity`，也可用 `CLAUDE_BOX_IDENTITY_BIN` 指定。见 [docs/identity-presentation.md](../../docs/identity-presentation.md) 与 [src/claudebox/README.md](../claudebox/README.md)。
 - 本机 `/sys/class/dmi` 在 dry-run 上**不会**改写（通常需特权且由内核提供）。verify 读的是展示层。内核名 `microsoft-standard-WSL2` 等痕迹会保持可见，这不是缺陷。
 - 真机导出：`host/Export-ClaudeBoxHostIdentity.ps1` 只读 `Win32_ComputerSystem` 的 Manufacturer / Model。测试夹具：`tests/wsl-box/fixtures/host-inventory.raw.yaml`（虚构值）。
 - Desktop 安装**只认** `installers/linux/*.deb` 或 `CLAUDE_BOX_DEB`；缺包则明确失败，不自动下载。
