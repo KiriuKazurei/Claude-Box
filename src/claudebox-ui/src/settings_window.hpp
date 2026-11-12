@@ -48,6 +48,12 @@ public:
     QString spoofStatusText() const;
     void refreshSpoofStatus();
 
+    // Injected address sets for the gateway-page dry-run preview (no real NIC).
+    void setIpChangePreview(const QStringList& previous, const QStringList& current,
+                            bool gateway_running = true);
+    QString ipChangeStatusText() const;
+    void refreshIpChangeStatus();
+
     void setLineValue(const QString& object_name, const QString& value);
     QString lineValue(const QString& object_name) const;
     void setChecked(const QString& object_name, bool checked);
@@ -68,6 +74,7 @@ private slots:
     void onRemoveExtraArg();
     void onRefreshGatewayStatus();
     void onRefreshSpoofStatus();
+    void onRefreshIpChangeStatus();
 
 private:
     void buildUi();
@@ -97,4 +104,8 @@ private:
     QPlainTextEdit* runtime_preview_ = nullptr;
     QPlainTextEdit* gateway_status_ = nullptr;
     QPlainTextEdit* spoof_status_ = nullptr;
+    QPlainTextEdit* ip_change_status_ = nullptr;
+    QStringList ip_prev_;
+    QStringList ip_curr_;
+    bool ip_gateway_running_ = true;
 };

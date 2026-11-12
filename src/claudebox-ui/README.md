@@ -45,13 +45,13 @@ QT_QPA_PLATFORM=offscreen ./src/claudebox-ui/build/claudebox-settings --prefix "
 ## 页面结构
 
 - **基座**：配置名、发行版名称、首选来源、安装目录
-- **网关**：宿主、端口、上游 HTTP / SOCKS5、拦截名单、日志；以及 dry-run 状态 / 中继计划 / 最近 JSONL（刷新对着夹具或临时前缀即可）
+- **网关**：宿主、端口、上游 HTTP / SOCKS5、拦截名单、日志；dry-run 状态 / 中继计划 / 最近 JSONL；以及本机 IP 波动响应（默认关：打开后，地址变化时并行启动断开网关与礼貌关进程，grace 后再强杀）。这是该策略在设置页里的配置位置。
 - **可见目录**：宿主路径 / 客机路径 / 只读 的列表编辑；保存时走核心挂载计划，拒绝整挂 `C:`、整棵 Users、或客机 `/mnt/c`
 - **挂载**：`disable_automount`
 - **身份伪装**：时区、locale、语言、主机名、Electron 语言（全部是盒子伪装值）。保存后应用到前缀；预览显示配置中的假时区 / 语言和 Intl 探针结果，不会读取宿主真实时区，也没有「暴露宿主真实时区 / 语言」的选项
 - **宿主身份**：原始清单 + 每字段「原样展示 / 隐藏 / 修改后展示」。`hide_identifiers` 保持开启，不是整份公开开关
 - **桌面**：deb URL / 本地路径、启动命令、额外参数、asar 补丁
-- **功能**：排除宿主系统盘、computer use、IP 变化杀进程、伴生指纹浏览器、身份保险库
+- **功能**：排除宿主系统盘、computer use、伴生指纹浏览器、身份保险库。IP 波动策略在「网关」页配置，本页只作说明。
 - **运行时预览**：发行版生命周期与挂载计划的 dry-run 摘要（不调用 `wsl.exe`）
 
 ## 测试
@@ -62,4 +62,5 @@ bash tests/claudebox/test-p4-gate.sh
 bash tests/claudebox/test-p4-p5-gate.sh
 bash tests/claudebox/test-p6-gate.sh
 bash tests/claudebox/test-p7-gate.sh
+bash tests/claudebox/test-p7-ip-gate.sh
 ```

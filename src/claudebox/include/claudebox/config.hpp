@@ -101,6 +101,8 @@ struct FeaturesSpec {
     bool exclude_host_system_drive = true;
     bool computer_use = false;
     bool kill_on_local_ip_change = false;
+    int kill_grace_seconds = 10;
+    int watch_interval_seconds = 5;
     bool oauth_open_in_fingerprint_browser = true;
     bool identity_vault = true;
 

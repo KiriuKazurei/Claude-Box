@@ -12,6 +12,7 @@ add_library(claudebox_identity
     src/settings.cpp
     src/mount.cpp
     src/gateway.cpp
+    src/gateway_ip.cpp
     src/spoof.cpp
 )
 target_include_directories(claudebox_identity PUBLIC include)
@@ -68,3 +69,10 @@ target_compile_definitions(test_spoof PRIVATE
     CLAUDEBOX_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../tests/wsl-box/fixtures"
     CLAUDEBOX_EXAMPLE_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../wsl-box/config/wsl-box.example.yaml")
 add_test(NAME spoof_plan COMMAND test_spoof)
+
+add_executable(test_gateway_ip tests/test_gateway_ip.cpp)
+target_link_libraries(test_gateway_ip PRIVATE claudebox_identity)
+target_compile_options(test_gateway_ip PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_compile_definitions(test_gateway_ip PRIVATE
+    CLAUDEBOX_EXAMPLE_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../wsl-box/config/wsl-box.example.yaml")
+add_test(NAME gateway_ip_change COMMAND test_gateway_ip)

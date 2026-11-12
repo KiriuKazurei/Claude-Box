@@ -2,6 +2,7 @@
 #include "claudebox/collect.hpp"
 #include "claudebox/mount.hpp"
 #include "claudebox/gateway.hpp"
+#include "claudebox/gateway_ip.hpp"
 #include "claudebox/spoof.hpp"
 
 
@@ -126,6 +127,16 @@ SaveResult Session::save() {
             for (size_t i = 1; i < gateway.errors.size(); ++i) {
                 result.error.append("\n");
                 result.error.append(gateway.errors[i]);
+            }
+            return result;
+        }
+        const auto watch = claudebox::gateway::watch_config(config);
+        if (!watch.ok) {
+            result.error = watch.errors.empty() ? "invalid IP-change watch config"
+                                                : watch.errors.front();
+            for (size_t i = 1; i < watch.errors.size(); ++i) {
+                result.error.append("\n");
+                result.error.append(watch.errors[i]);
             }
             return result;
         }

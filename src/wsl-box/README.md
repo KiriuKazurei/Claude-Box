@@ -51,9 +51,9 @@ bash tests/wsl-box/test-linux-framework.sh
 
 Anthropic：WSL 用户应装 Windows Desktop。本轨为不受支持的验证/实现路径，见架构文档风险节。
 
-## 可选：本机 IP 波动杀进程（默认关）
+## 可选：本机 IP 波动时断开网关并结束进程（默认关 · 唯一网关模块）
 
-配置 `features.kill_on_local_ip_change: false`。打开后由宿主 `host/Watch-ClaudeBoxLocalIp.ps1` 监视本机 IP；变化则对发行版内 Claude **先礼貌关再强杀**（学 claude-switcher）。专篇：[docs/kill-on-local-ip-change.md](../../docs/kill-on-local-ip-change.md)。
+配置 `features.kill_on_local_ip_change: false`。打开后由宿主 `host/Watch-ClaudeBoxLocalIp.ps1` 监视本机 IP；变化则**并行启动** `Stop-ClaudeBoxGateway` 与发行版内 Claude 的礼貌关闭（互不等待），进程在 grace 后若仍存活再强杀。专篇：[docs/kill-on-local-ip-change.md](../../docs/kill-on-local-ip-change.md)。
 
 ## OAuth（OA）跳转：伴生指纹浏览器（默认开 · W6 接线）
 

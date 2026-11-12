@@ -74,5 +74,5 @@ Windows 自建容器路径上，同等语义是：容器用户环境下的 **时
 
 ## 相关（非伪装，但同属「宿主勿乱动」）
 
-本机 IP 波动时可选杀掉 Claude（默认关）见 [kill-on-local-ip-change.md](./kill-on-local-ip-change.md)。该策略只杀 box 进程，**不**改宿主时区/语言——与本文「宿主照旧、盒子内伪装」一致。
+本机 IP 波动时可选断开网关并结束 Claude（默认关，唯一网关模块）见 [kill-on-local-ip-change.md](./kill-on-local-ip-change.md)。该策略只动网关与 box 进程，**不**改宿主时区/语言——与本文「宿主照旧、盒子内伪装」一致。
 

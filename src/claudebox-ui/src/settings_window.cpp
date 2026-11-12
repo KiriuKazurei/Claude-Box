@@ -5,9 +5,11 @@
 #include "claudebox/identity.hpp"
 #include "claudebox/mount.hpp"
 #include "claudebox/gateway.hpp"
+#include "claudebox/gateway_ip.hpp"
 #include "claudebox/spoof.hpp"
 
 #include <algorithm>
+#include <vector>
 
 #include <QAbstractItemView>
 #include <QApplication>
@@ -213,10 +215,10 @@ QWidget* SettingsWindow::buildGatewayPage() {
     auto* page = new QWidget;
     auto* layout = new QVBoxLayout(page);
     layout->addWidget(noteLabel(
-        u8("配置唯一网关的上游、拦截名单和 JSONL 日志。保存只更新盒子配置；"
-           "本页可以预览中继计划和最近日志，但不会在这台云电脑上启动 gost，"
-           "也不会绑定 Win11 网卡。gost 仍由现有 ClaudeBox.Gateway 模块在 "
-           "Win11 上启动。")));
+        u8("配置唯一网关的上游、拦截名单、JSONL 日志，以及本机 IP 波动时的响应。"
+           "保存只更新盒子配置。本页可以预览中继计划、最近日志和 IP 波动的并行动作，"
+           "但不会在这台云电脑上启动或停止 gost，也不会绑定 Win11 网卡或结束真实进程。"
+           "gost 仍由现有 ClaudeBox.Gateway 模块在 Win11 上启动。")));
     auto* form = new QFormLayout;
     form->addRow(u8("宿主地址"), namedEdit(QStringLiteral("gatewayHostEdit")));
     auto* port = new QSpinBox;
@@ -252,6 +254,45 @@ QWidget* SettingsWindow::buildGatewayPage() {
     logForm->addRow(u8("日志路径"), namedEdit(QStringLiteral("loggingPathEdit"),
                                          u8("空 = 盒子前缀下 var/logs/gateway.jsonl")));
     layout->addWidget(logBox);
+
+    auto* ipBox = new QGroupBox(u8("本机 IP 波动响应"));
+    auto* ipLayout = new QVBoxLayout(ipBox);
+    ipLayout->addWidget(noteLabel(
+        u8("这是唯一网关模块的策略，默认关闭。打开后，一旦宿主本机 IP 集合变化，"
+           "断开网关和礼貌关闭盒子内 Claude 会作为两条并行线程同时启动，互不等待。"
+           "进程在下方 grace 秒后若仍存活再强杀；网关断开不会等到这段 grace。"
+           "只作用于盒子内的 claude-desktop / claude / Claude，不会结束机器上的其他进程。"
+           "本页预览是 dry-run，不会调用 wsl.exe，也不会真的停止 gost。")));
+    auto* kill = new QCheckBox(u8("本机 IP 变化时断开网关并结束盒子内 Claude（默认关）"));
+    kill->setObjectName(QStringLiteral("killOnIpChangeCheck"));
+    ipLayout->addWidget(kill);
+    auto* ipForm = new QFormLayout;
+    auto* grace = new QSpinBox;
+    grace->setObjectName(QStringLiteral("killGraceSpin"));
+    grace->setRange(0, 600);
+    grace->setSuffix(u8(" 秒"));
+    ipForm->addRow(u8("进程礼貌关后的等待（grace）"), grace);
+    auto* interval = new QSpinBox;
+    interval->setObjectName(QStringLiteral("watchIntervalSpin"));
+    interval->setRange(1, 600);
+    interval->setSuffix(u8(" 秒"));
+    ipForm->addRow(u8("监视间隔"), interval);
+    ipLayout->addLayout(ipForm);
+    ip_change_status_ = new QPlainTextEdit;
+    ip_change_status_->setObjectName(QStringLiteral("ipChangeStatusPreview"));
+    ip_change_status_->setReadOnly(true);
+    ip_change_status_->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+    ip_change_status_->setMinimumHeight(180);
+    auto ipFont = ip_change_status_->font();
+    ipFont.setStyleHint(QFont::Monospace);
+    ipFont.setFamily(QStringLiteral("monospace"));
+    ip_change_status_->setFont(ipFont);
+    ipLayout->addWidget(ip_change_status_, 1);
+    auto* refreshIp = new QPushButton(u8("刷新 IP 波动预览"));
+    refreshIp->setObjectName(QStringLiteral("refreshIpChangeStatusButton"));
+    ipLayout->addWidget(refreshIp, 0, Qt::AlignLeft);
+    layout->addWidget(ipBox);
+    connect(refreshIp, &QPushButton::clicked, this, &SettingsWindow::onRefreshIpChangeStatus);
 
     auto* statusBox = new QGroupBox(u8("状态与预览"));
     auto* statusLayout = new QVBoxLayout(statusBox);
@@ -425,7 +466,8 @@ QWidget* SettingsWindow::buildFeaturesPage() {
     auto* page = new QWidget;
     auto* layout = new QVBoxLayout(page);
     layout->addWidget(noteLabel(
-        u8("功能开关同样是配置项。伴生指纹浏览器、身份保险库、本机 IP 变化杀进程等运行时接线属于后续模块。")));
+        u8("功能开关同样是配置项。伴生指纹浏览器、身份保险库的运行时接线属于后续模块。"
+           "本机 IP 波动时的网关断开与进程结束策略在「网关」页配置（同一模块，默认关），这里只作说明。")));
     auto add = [&](const QString& name, const QString& label) {
         auto* check = new QCheckBox(label);
         check->setObjectName(name);
@@ -434,8 +476,11 @@ QWidget* SettingsWindow::buildFeaturesPage() {
     add(QStringLiteral("excludeHostSystemDriveCheck"),
         u8("排除宿主系统盘（拒绝把整个 C: 挂进盒子）"));
     add(QStringLiteral("computerUseCheck"), u8("允许 computer use"));
-    add(QStringLiteral("killOnIpChangeCheck"),
-        u8("本机 IP 变化时结束盒子内 Claude（默认关）"));
+    auto* ipNote = noteLabel(
+        u8("本机 IP 变化时：在「网关」页打开开关。动作是并行启动「断开网关」和"
+           "「礼貌关闭盒子内 Claude」，互不等待；进程 grace 后如仍存活再强杀。默认关闭。"));
+    ipNote->setObjectName(QStringLiteral("killOnIpChangeFeatureNote"));
+    layout->addWidget(ipNote);
     add(QStringLiteral("oauthFingerprintCheck"),
         u8("OAuth / 授权页用伴生指纹浏览器打开（不走宿主默认浏览器）"));
     add(QStringLiteral("identityVaultCheck"), u8("启用盒子内身份保险库"));
@@ -611,12 +656,15 @@ void SettingsWindow::syncFromSession() {
                c.features.exclude_host_system_drive);
     setChecked(QStringLiteral("computerUseCheck"), c.features.computer_use);
     setChecked(QStringLiteral("killOnIpChangeCheck"), c.features.kill_on_local_ip_change);
+    setSpinValue(QStringLiteral("killGraceSpin"), c.features.kill_grace_seconds);
+    setSpinValue(QStringLiteral("watchIntervalSpin"), c.features.watch_interval_seconds);
     setChecked(QStringLiteral("oauthFingerprintCheck"),
                c.features.oauth_open_in_fingerprint_browser);
     setChecked(QStringLiteral("identityVaultCheck"), c.features.identity_vault);
     refreshRuntimePreview();
     refreshGatewayStatus();
     refreshSpoofStatus();
+    refreshIpChangeStatus();
 }
 
 bool SettingsWindow::harvestToSession(QString* error) {
@@ -664,6 +712,8 @@ bool SettingsWindow::harvestToSession(QString* error) {
     c.features.exclude_host_system_drive = isChecked(QStringLiteral("excludeHostSystemDriveCheck"));
     c.features.computer_use = isChecked(QStringLiteral("computerUseCheck"));
     c.features.kill_on_local_ip_change = isChecked(QStringLiteral("killOnIpChangeCheck"));
+    c.features.kill_grace_seconds = spinValue(QStringLiteral("killGraceSpin"));
+    c.features.watch_interval_seconds = spinValue(QStringLiteral("watchIntervalSpin"));
     c.features.oauth_open_in_fingerprint_browser =
         isChecked(QStringLiteral("oauthFingerprintCheck"));
     c.features.identity_vault = isChecked(QStringLiteral("identityVaultCheck"));
@@ -883,6 +933,57 @@ void SettingsWindow::onRefreshSpoofStatus() {
     refreshSpoofStatus();
 }
 
+void SettingsWindow::setIpChangePreview(const QStringList& previous, const QStringList& current,
+                                        bool gateway_running) {
+    ip_prev_ = previous;
+    ip_curr_ = current;
+    ip_gateway_running_ = gateway_running;
+    refreshIpChangeStatus();
+}
+
+QString SettingsWindow::ipChangeStatusText() const {
+    return ip_change_status_ ? ip_change_status_->toPlainText() : QString{};
+}
+
+void SettingsWindow::refreshIpChangeStatus() {
+    if (!ip_change_status_) {
+        return;
+    }
+    const auto previous_session = session_;
+    QString error;
+    const bool harvested = harvestToSession(&error);
+    std::vector<std::string> prev_raw;
+    std::vector<std::string> curr_raw;
+    for (const auto& item : ip_prev_) {
+        prev_raw.push_back(item.toStdString());
+    }
+    for (const auto& item : ip_curr_) {
+        curr_raw.push_back(item.toStdString());
+    }
+    const auto previous = claudebox::gateway::make_fingerprint(prev_raw);
+    const auto current = claudebox::gateway::make_fingerprint(curr_raw);
+    const std::vector<claudebox::gateway::BoxProcess> fixture_procs = {
+        {"claude-desktop", 101, true},
+        {"claude", 102, true},
+        {"firefox", 200, true},
+        {"claudebox-identity", 202, true},
+    };
+    const auto run = claudebox::gateway::dry_run_ip_change(
+        session_.config, previous, current, fixture_procs, ip_gateway_running_);
+    ip_change_status_->setPlainText(
+        QString::fromStdString(claudebox::gateway::format_ip_change_plan(run.plan, &run)));
+    if (!harvested && !error.isEmpty()) {
+        ip_change_status_->appendPlainText(QString::fromUtf8("\n表单还未填完：") + error);
+    }
+    if (!harvested) {
+        session_ = previous_session;
+    }
+}
+
+void SettingsWindow::onRefreshIpChangeStatus() {
+    refreshIpChangeStatus();
+}
+
 void SettingsWindow::onSave() {
     QString error;
     if (!saveToDisk(&error)) {
@@ -897,6 +998,7 @@ void SettingsWindow::onSave() {
     refreshRuntimePreview();
     refreshGatewayStatus();
     refreshSpoofStatus();
+    refreshIpChangeStatus();
 }
 
 void SettingsWindow::onReload() {

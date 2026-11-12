@@ -3,6 +3,7 @@
 #include "claudebox/config.hpp"
 #include "claudebox/identity.hpp"
 #include "claudebox/spoof.hpp"
+#include "claudebox/gateway_ip.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -188,6 +189,8 @@ private slots:
         window.setChecked(QStringLiteral("asarPatchCheck"), true);
         window.setChecked(QStringLiteral("computerUseCheck"), true);
         window.setChecked(QStringLiteral("killOnIpChangeCheck"), true);
+        window.setSpinValue(QStringLiteral("killGraceSpin"), 15);
+        window.setSpinValue(QStringLiteral("watchIntervalSpin"), 3);
         window.setChecked(QStringLiteral("oauthFingerprintCheck"), false);
         window.setChecked(QStringLiteral("identityVaultCheck"), false);
 
@@ -218,6 +221,8 @@ private slots:
         QVERIFY(cfg.desktop.asar_patch);
         QVERIFY(cfg.features.computer_use);
         QVERIFY(cfg.features.kill_on_local_ip_change);
+        QCOMPARE(cfg.features.kill_grace_seconds, 15);
+        QCOMPARE(cfg.features.watch_interval_seconds, 3);
         QVERIFY(!cfg.features.oauth_open_in_fingerprint_browser);
         QVERIFY(!cfg.features.identity_vault);
 
@@ -228,6 +233,9 @@ private slots:
         QCOMPARE(reloaded.listItems(QStringLiteral("extraArgsWidget")).size(), 1);
         QVERIFY(!reloaded.isChecked(QStringLiteral("oauthFingerprintCheck")));
         QVERIFY(reloaded.isChecked(QStringLiteral("excludeHostSystemDriveCheck")));
+        QVERIFY(reloaded.isChecked(QStringLiteral("killOnIpChangeCheck")));
+        QCOMPARE(reloaded.spinValue(QStringLiteral("killGraceSpin")), 15);
+        QCOMPARE(reloaded.spinValue(QStringLiteral("watchIntervalSpin")), 3);
     }
 
     void rejectsSystemDriveMountAndKeepsSavedConfig() {
@@ -409,6 +417,59 @@ private slots:
                  QString::fromStdString(before));
         QVERIFY(QString::fromStdString(read_text(prefix_ / "env" / "spoof.env"))
                     .contains(QStringLiteral("Europe/Berlin")));
+    }
+
+    void ipChangePolicyLivesOnGatewayPage() {
+        seedPrefix(uniquePrefix("ip-change"));
+        SettingsWindow window(options_);
+        QVERIFY(window.findChild<QCheckBox*>(QStringLiteral("killOnIpChangeCheck")));
+        QVERIFY(window.findChild<QPlainTextEdit*>(QStringLiteral("ipChangeStatusPreview")));
+        QVERIFY(window.findChild<QPushButton*>(QStringLiteral("refreshIpChangeStatusButton")));
+        QVERIFY(!window.isChecked(QStringLiteral("killOnIpChangeCheck")));
+        QCOMPARE(window.spinValue(QStringLiteral("killGraceSpin")), 10);
+        QCOMPARE(window.spinValue(QStringLiteral("watchIntervalSpin")), 5);
+
+        window.setIpChangePreview(
+            QStringList{QStringLiteral("Ethernet|192.168.1.20/24")},
+            QStringList{QStringLiteral("Ethernet|10.0.0.8/24")},
+            true);
+        QString preview = window.ipChangeStatusText();
+        QVERIFY2(preview.contains(QString::fromUtf8("关闭（默认）")) ||
+                     preview.contains(QString::fromUtf8("默认关闭")) ||
+                     preview.contains(QStringLiteral("noop")) ||
+                     preview.contains(QString::fromUtf8("无（")),
+                 qPrintable(preview));
+        QVERIFY(preview.contains(QString::fromUtf8("并行")));
+        QVERIFY(!preview.contains(QStringLiteral("t=0 thread=gateway start")));
+
+        window.setChecked(QStringLiteral("killOnIpChangeCheck"), true);
+        window.refreshIpChangeStatus();
+        preview = window.ipChangeStatusText();
+        QVERIFY2(preview.contains(QString::fromUtf8("已打开")), qPrintable(preview));
+        QVERIFY(preview.contains(QStringLiteral("stop_gateway")));
+        QVERIFY(preview.contains(QStringLiteral("polite_close")));
+        QVERIFY(preview.contains(QString::fromUtf8("并行组")));
+        QVERIFY(preview.contains(QStringLiteral("t=0 thread=gateway")));
+        QVERIFY(preview.contains(QStringLiteral("t=0 thread=process")));
+        QVERIFY(preview.contains(QString::fromUtf8("不是「先断开网关再礼貌关」")) ||
+                preview.contains(QString::fromUtf8("互不等待")));
+        QVERIFY(!window.ipChangeStatusText().contains(QStringLiteral("after grace: stop gateway")));
+
+        QString error;
+        QVERIFY2(window.saveToDisk(&error), qPrintable(error));
+        const auto cfg = BoxConfig::load_file(options_.config);
+        QVERIFY(cfg.features.kill_on_local_ip_change);
+        QCOMPARE(cfg.features.kill_grace_seconds, 10);
+
+        SettingsWindow reloaded(options_);
+        QVERIFY(reloaded.isChecked(QStringLiteral("killOnIpChangeCheck")));
+        reloaded.setIpChangePreview(
+            QStringList{QStringLiteral("Ethernet|192.168.1.20/24")},
+            QStringList{QStringLiteral("Ethernet|10.0.0.8/24")},
+            true);
+        const auto again = reloaded.ipChangeStatusText();
+        QVERIFY2(again.contains(QStringLiteral("t=0 thread=gateway")), qPrintable(again));
+        QVERIFY(again.contains(QStringLiteral("t=0 thread=process")));
     }
 
     void smokeConstructsWithoutCrash() {

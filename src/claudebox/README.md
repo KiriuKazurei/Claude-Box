@@ -83,3 +83,11 @@ bash tests/claudebox/test-p6-gate.sh
 ```bash
 bash tests/claudebox/test-p7-gate.sh
 ```
+
+## 本机 IP 波动响应（唯一网关模块）
+
+`claudebox/gateway_ip.hpp` 根据注入的上一组 / 当前本机地址集合，规划「断开唯一网关」与「礼貌关闭盒子内 Claude」的**并行启动**（互不等待），并在 `kill_grace_seconds`（默认 10）后强杀仍存活的进程。默认 `features.kill_on_local_ip_change: false`。这是 dry-run：不读真网卡，不停止活的 gost，不杀真实进程。
+
+```bash
+bash tests/claudebox/test-p7-ip-gate.sh
+```

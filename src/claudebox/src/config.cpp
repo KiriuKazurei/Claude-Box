@@ -616,6 +616,12 @@ BoxConfig BoxConfig::parse_yaml(std::string_view text) {
         if (feat->child("kill_on_local_ip_change")) {
             cfg.features.kill_on_local_ip_change = feat->boolean("kill_on_local_ip_change", false);
         }
+        if (feat->child("kill_grace_seconds")) {
+            cfg.features.kill_grace_seconds = feat->integer("kill_grace_seconds", 10);
+        }
+        if (feat->child("watch_interval_seconds")) {
+            cfg.features.watch_interval_seconds = feat->integer("watch_interval_seconds", 5);
+        }
         if (feat->child("oauth_open_in_fingerprint_browser")) {
             cfg.features.oauth_open_in_fingerprint_browser =
                 feat->boolean("oauth_open_in_fingerprint_browser", true);
@@ -699,6 +705,8 @@ std::string BoxConfig::to_yaml() const {
     write_bool(out, 4, "exclude_host_system_drive", features.exclude_host_system_drive);
     write_bool(out, 4, "computer_use", features.computer_use);
     write_bool(out, 4, "kill_on_local_ip_change", features.kill_on_local_ip_change);
+    write_int(out, 4, "kill_grace_seconds", features.kill_grace_seconds);
+    write_int(out, 4, "watch_interval_seconds", features.watch_interval_seconds);
     write_bool(out, 4, "oauth_open_in_fingerprint_browser",
                features.oauth_open_in_fingerprint_browser);
     write_bool(out, 4, "identity_vault", features.identity_vault);

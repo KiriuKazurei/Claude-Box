@@ -130,6 +130,8 @@ static void test_load_example() {
     CHECK(cfg.features.exclude_host_system_drive);
     CHECK(!cfg.features.computer_use);
     CHECK(!cfg.features.kill_on_local_ip_change);
+    CHECK_EQ(cfg.features.kill_grace_seconds, 10);
+    CHECK_EQ(cfg.features.watch_interval_seconds, 5);
     CHECK(cfg.features.oauth_open_in_fingerprint_browser);
     CHECK(cfg.features.identity_vault);
 }
@@ -172,6 +174,8 @@ static void test_round_trip() {
     edited.desktop.asar_patch = true;
     edited.features.computer_use = true;
     edited.features.kill_on_local_ip_change = true;
+    edited.features.kill_grace_seconds = 15;
+    edited.features.watch_interval_seconds = 3;
     edited.features.oauth_open_in_fingerprint_browser = false;
     edited.features.identity_vault = false;
     edited.features.exclude_host_system_drive = true;

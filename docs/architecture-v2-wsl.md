@@ -34,7 +34,7 @@ Anthropic 文档对 WSL 用户的建议是：**装 Windows Claude Desktop，再�
 | 身份展示按字段授权 | 部署后采集电脑信息，设置页决定原样展示 / 隐藏 / 修改后展示；默认厂商与型号可原样展示，硬件编码默认隐藏。见 [identity-presentation.md](./identity-presentation.md) |
 | 反遥测 | 网关/hosts/nft 拦 Sentry、Datadog RUM、`/api/event_logging` |
 | Computer use | **已降权**；Linux Desktop 官方无 CU |
-| 可选止血（默认关） | 本机 IP 波动 → 礼貌关再强杀 Claude（学 claude-switcher；见 [kill-on-local-ip-change.md](./kill-on-local-ip-change.md)） |
+| 可选止血（默认关 · 唯一网关模块） | 本机 IP 波动 → **并行启动**断开唯一网关与礼貌关闭 Claude；进程 grace 后再强杀（学 claude-switcher；见 [kill-on-local-ip-change.md](./kill-on-local-ip-change.md)） |
 | OA 不走宿主浏览器 | Claude 跳转 OAuth / 授权页时，用独立伴生指纹浏览器打开（见 [companion-fingerprint-browser.md](./companion-fingerprint-browser.md)） |
 | 身份保险库（尽量不改宿主） | 盒子内归档/切换 Claude 身份（见 [identity-vault.md](./identity-vault.md)）；不改宿主时区语言或默认 Claude 目录 |
 
@@ -108,14 +108,14 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 - 可选：发行版 `nftables` 禁止非代理出网（强化版，W1+）。
 - 云电脑上的 C++ 核心（`claudebox::gateway`）与设置页共用同一套校验 / 中继计划 / JSONL 状态：空日志路径落在盒子前缀 `var/logs/gateway.jsonl`，不使用宿主 `%LOCALAPPDATA%`。这是 dry-run，不启动 gost，也不绑定 Win11 网卡。Win11 上的实际中继启动仍走 `ClaudeBox.Gateway`。
 
-### 可选 · 本机 IP 波动杀进程（默认关 · 已知有效）
+### 可选 · 本机 IP 波动时断开网关并结束进程（默认关 · 已知有效 · 唯一网关模块）
 
-和零决策（2026-11-02）：增加明确知晓有效的止血方案——**宿主本机 IP 集合变化时，快速杀掉 box 内全部 Claude 进程**。
+和零决策（2026-11-02）：增加明确知晓有效的止血方案。2026-11-12 补充：本策略**放在唯一网关模块**；宿主本机 IP 集合变化时，**断开唯一网关**和**礼貌关闭 box 内 Claude 进程**作为两条线程同时启动，互不等待，让丢链接和结束进程尽快一起生效。
 
-- 学 [claude-switcher](https://github.com/YOURSJEYO/claude-switcher)：**先礼貌关窗口/发关闭信号，短超时（约 10s）后再强杀**，避免半写坏 userData。
+- 学 [claude-switcher](https://github.com/YOURSJEYO/claude-switcher) 的进程节奏：**先礼貌关窗口/发关闭信号，短超时（约 10s）后再强杀**，避免半写坏 userData。这段 grace 只约束进程，**不**推迟网关断开。
 - 配置：`features.kill_on_local_ip_change: false`（**默认 OFF**）。
-- **不替代** 唯一网关 / 强制代理；只补「出口身份抖了、进程还挂着」的缺口。
-- 专篇与验收：[kill-on-local-ip-change.md](./kill-on-local-ip-change.md)；宿主桩脚本：`src/wsl-box/host/Watch-ClaudeBoxLocalIp.ps1`。
+- 不能取代「出网必须经唯一网关」这条硬约束；补的是「出口身份抖了、连接和进程还挂着」的缺口。
+- 专篇与验收：[kill-on-local-ip-change.md](./kill-on-local-ip-change.md)；C++ 计划：`claudebox/gateway_ip.hpp`；宿主桩脚本：`src/wsl-box/host/Watch-ClaudeBoxLocalIp.ps1`。设置页开关在「网关」栏。
 
 ### OAuth（OA）跳转 · 伴生指纹浏览器（规划 · 默认开）
 
@@ -139,7 +139,7 @@ wsl -d ClaudeBox --cd ~ --env TZ=America/Los_Angeles `
 | **W2** | 安装 Linux Desktop + `apply-spoof` + 经网关启动 | 探针：`Intl` timeZone / locale = 假值；流量进网关 JSONL |
 | **W3** | 遥测拦截复盘 | Sentry/Datadog/event_logging 被拦或 culture 已是假值 |
 | **W4** | 可选：asar 备用补丁、Cowork/KVM 可行性记录 | 仅主路径不足时启用补丁 |
-| **W5** | 可选：`kill_on_local_ip_change` 监视器 | 默认关；打开后 IP 变化 → 礼貌关→强杀；见专篇 |
+| **W5** | 可选：`kill_on_local_ip_change` 监视器（唯一网关模块） | 默认关；打开后 IP 变化 → 并行启动断开网关与礼貌关，进程 grace 后再强杀；见专篇 |
 | **W6** | OA 跳转走伴生指纹浏览器 | 授权 URL 不落入宿主默认浏览器；独立 profile；时区/语言与盒子 identity 一致；流量进网关；引擎未就绪则拒绝打开（不回退宿主浏览器） |
 | **W7** | 盒子内身份保险库 | 归档/切换/回滚只动盒子目录；宿主时区语言与默认 Claude 目录不变；可选与伴生浏览器 profile 绑定 |
 

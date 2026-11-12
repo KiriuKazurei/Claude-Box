@@ -1,4 +1,4 @@
-# Claude Box · 范围 v0.4.0（主方案：纯 WSL）
+# Claude Box · 范围 v0.4.1（主方案：纯 WSL）
 
 ## 一句话
 
@@ -49,11 +49,12 @@
    - 优先不改程序；备用 patch asar / hook。  
    - 详见 [docs/spoofing-timezone-locale.md](./docs/spoofing-timezone-locale.md)。
 
-6. **可选 · 本机 IP 波动杀进程（默认关）**  
-   - 学 [claude-switcher](https://github.com/YOURSJEYO/claude-switcher)：先礼貌关再强杀。  
-   - 触发：宿主本机 IP 集合变化时，快速结束 box 内全部 Claude 进程。  
+6. **可选 · 本机 IP 波动时断开网关并结束进程（默认关 · 唯一网关模块）**  
+   - 归属唯一网关模块；设置在网关页。  
+   - 触发：宿主本机 IP 集合变化时，**并行启动**：断开唯一网关，并礼貌关闭 box 内 Claude 进程。两条线程同时开始，互不等待。  
+   - 进程学 [claude-switcher](https://github.com/YOURSJEYO/claude-switcher)：礼貌关 → grace（默认 10s）→ 仍存活则强杀。grace 只约束进程，不推迟网关断开。  
    - 配置：`features.kill_on_local_ip_change: false`（默认 OFF）。  
-   - 已知有效；不替代唯一网关。详见 [docs/kill-on-local-ip-change.md](./docs/kill-on-local-ip-change.md)。
+   - 已知有效。详见 [docs/kill-on-local-ip-change.md](./docs/kill-on-local-ip-change.md)。
 
 7. **OAuth（OA）跳转走伴生指纹浏览器**  
    - Claude 打开登录 / 授权页时，用独立指纹浏览器浏览，**不走宿主默认浏览器**，避免 Cookie、扩展、真机指纹从浏览器侧泄漏。  
@@ -75,7 +76,7 @@
 - 配置网关、上游（含 Clash）、连接日志
 - 选择可见目录（拒绝默认挂宿主 `C:`）
 - 启停 WSL 发行版内 Desktop（WSLg 窗口）
-- 可选开关：本机 IP 波动时杀 Claude（默认关；见上）
+- 可选开关（网关页）：本机 IP 波动时断开网关并结束盒子内 Claude（默认关；见上）
 - OA / 授权页用伴生指纹浏览器打开（默认开；见上；W6 接线）
 - 盒子内身份保险库：归档 / 切换（默认开；见上；W7 接线）
 
