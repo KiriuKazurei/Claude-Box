@@ -5,6 +5,7 @@
 #include "claudebox/spoof.hpp"
 #include "claudebox/companion.hpp"
 #include "claudebox/vault.hpp"
+#include "claudebox/desktop.hpp"
 #include "claudebox/gateway_ip.hpp"
 
 #include <QApplication>
@@ -604,6 +605,36 @@ private slots:
         const auto restored = QString::fromStdString(read_text(workspace / "desktop" / "login.json"));
         QVERIFY2(restored.contains(QStringLiteral("token-aaa")), qPrintable(restored));
         QVERIFY(!window.vaultStatusText().contains(QStringLiteral("fixture-passphrase-not-for-logs")));
+    }
+
+
+    void desktopMissingBinaryIsNotStarted() {
+        seedPrefix(uniquePrefix("desktop"));
+        SettingsWindow window(options_);
+        QVERIFY(window.findChild<QPlainTextEdit*>(QStringLiteral("desktopStatusPreview")));
+        QVERIFY(window.findChild<QPushButton*>(QStringLiteral("startDesktopDryRunButton")));
+        QString status = window.desktopStatusText();
+        QVERIFY2(status.contains(QString::fromUtf8("未启动")) ||
+                     status.contains(QString::fromUtf8("未找到")),
+                 qPrintable(status));
+        QVERIFY(status.contains(QStringLiteral("America/Los_Angeles")));
+        QVERIFY(status.contains(QStringLiteral("http://127.0.0.1:3080")));
+        QVERIFY(!status.contains(QString::fromUtf8("会话：运行中")));
+
+        QString error;
+        QVERIFY2(window.startDesktopDryRun(&error), qPrintable(error));
+        status = window.desktopStatusText();
+        QVERIFY2(status.contains(QString::fromUtf8("未启动")) ||
+                     status.contains(QString::fromUtf8("未找到")),
+                 qPrintable(status));
+        QVERIFY(!status.contains(QString::fromUtf8("会话：运行中")));
+
+        QVERIFY2(window.stopDesktopDryRun(&error), qPrintable(error));
+        status = window.desktopStatusText();
+        QVERIFY(status.contains(QStringLiteral("polite_close")) ||
+                status.contains(QString::fromUtf8("dry-run")));
+        QVERIFY(status.contains(QStringLiteral("claude-desktop")));
+        QVERIFY(!status.contains(QString::fromUtf8("会话：运行中")));
     }
 
     void smokeConstructsWithoutCrash() {

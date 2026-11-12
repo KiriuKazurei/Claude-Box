@@ -18,6 +18,7 @@ add_library(claudebox_identity
     src/spoof.cpp
     src/companion.cpp
     src/vault.cpp
+    src/desktop.cpp
 )
 target_include_directories(claudebox_identity PUBLIC include)
 target_link_libraries(claudebox_identity PUBLIC OpenSSL::Crypto)
@@ -36,6 +37,10 @@ target_compile_options(claudebox-companion PRIVATE -Wall -Wextra -Wpedantic -Wer
 add_executable(claudebox-vault src/vault_cli.cpp)
 target_link_libraries(claudebox-vault PRIVATE claudebox_identity)
 target_compile_options(claudebox-vault PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
+add_executable(claudebox-desktop src/desktop_cli.cpp)
+target_link_libraries(claudebox-desktop PRIVATE claudebox_identity)
+target_compile_options(claudebox-desktop PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_executable(test_identity tests/test_identity.cpp)
 target_link_libraries(test_identity PRIVATE claudebox_identity)
@@ -106,3 +111,10 @@ target_compile_options(test_vault PRIVATE -Wall -Wextra -Wpedantic -Werror)
 target_compile_definitions(test_vault PRIVATE
     CLAUDEBOX_EXAMPLE_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../wsl-box/config/wsl-box.example.yaml")
 add_test(NAME identity_vault COMMAND test_vault)
+
+add_executable(test_desktop tests/test_desktop.cpp)
+target_link_libraries(test_desktop PRIVATE claudebox_identity)
+target_compile_options(test_desktop PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_compile_definitions(test_desktop PRIVATE
+    CLAUDEBOX_EXAMPLE_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../wsl-box/config/wsl-box.example.yaml")
+add_test(NAME desktop_control COMMAND test_desktop)

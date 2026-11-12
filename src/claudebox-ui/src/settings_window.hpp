@@ -59,6 +59,11 @@ public:
     bool archiveVault(QString* error);
     bool switchVault(const QString& target_id, QString* error);
     bool rollbackVault(QString* error);
+
+    QString desktopStatusText() const;
+    void refreshDesktopStatus();
+    bool startDesktopDryRun(QString* error);
+    bool stopDesktopDryRun(QString* error);
     QStringList vaultSnapshotIds() const;
 
     // Injected address sets for the gateway-page dry-run preview (no real NIC).
@@ -94,6 +99,9 @@ private slots:
     void onSwitchVault();
     void onSwitchVaultEmpty();
     void onRollbackVault();
+    void onRefreshDesktopStatus();
+    void onStartDesktopDryRun();
+    void onStopDesktopDryRun();
 
 private:
     void buildUi();
@@ -129,6 +137,7 @@ private:
     QPlainTextEdit* companion_status_ = nullptr;
     QPlainTextEdit* vault_status_ = nullptr;
     QListWidget* vault_snapshots_ = nullptr;
+    QPlainTextEdit* desktop_status_ = nullptr;
     QStringList ip_prev_;
     QStringList ip_curr_;
     bool ip_gateway_running_ = true;

@@ -121,3 +121,13 @@ export CLAUDE_BOX_VAULT_PASSPHRASE_FILE=/tmp/claude-box-vault-pass
 ./src/claudebox/build/claudebox-vault rollback --prefix /tmp/claude-box-p9
 bash tests/claudebox/test-p9-gate.sh
 ```
+
+## Desktop 启停（P10）
+
+`claudebox/desktop.hpp` 针对盒子前缀生成 Linux Claude Desktop 的 dry-run 启停计划，复用现有 `start-claude-desktop.sh` / `Install-ClaudeDesktop.sh`（`--check` / 本地 deb only）的合同。启动计划会应用盒子伪装环境、已有的宿主型号展示，并要求唯一网关代理；缺少代理时不会启动。云电脑上若找不到 Desktop 二进制，计划与状态都写「未启动」，不会假装已有活会话，也不会弹出窗口。停止只对注入的进程列表做礼貌关 → grace → 强杀 dry-run。本机 IP 波动杀进程仍在唯一网关模块。
+
+```bash
+./src/claudebox/build/claudebox-desktop status --prefix /tmp/claude-box-p10
+./src/claudebox/build/claudebox-desktop start --prefix /tmp/claude-box-p10
+bash tests/claudebox/test-p10-gate.sh
+```

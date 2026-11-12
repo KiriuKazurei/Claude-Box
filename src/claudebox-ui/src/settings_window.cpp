@@ -9,6 +9,7 @@
 #include "claudebox/spoof.hpp"
 #include "claudebox/companion.hpp"
 #include "claudebox/vault.hpp"
+#include "claudebox/desktop.hpp"
 
 #include <algorithm>
 #include <cstdlib>
@@ -436,7 +437,7 @@ QWidget* SettingsWindow::buildDesktopPage() {
     auto* page = new QWidget;
     auto* layout = new QVBoxLayout(page);
     layout->addWidget(noteLabel(
-        u8("Desktop 安装与启动配置。本页只负责读写这些字段；真正启停 Desktop 属于后续模块。")));
+        u8("Desktop 安装与启动配置。本页可以生成 dry-run 启停计划：二进制不存在时状态为「未启动」，不会在这台云电脑上弹出窗口或调用 wsl.exe。启动计划会带上盒子伪装、宿主型号展示和唯一网关代理。本机 IP 波动时的结束进程策略仍在「网关」页。")));
     auto* form = new QFormLayout;
     form->addRow(u8("deb 下载 URL"), namedEdit(QStringLiteral("debUrlEdit")));
     form->addRow(u8("本地 deb 路径"), namedEdit(QStringLiteral("debLocalEdit")));
@@ -463,7 +464,35 @@ QWidget* SettingsWindow::buildDesktopPage() {
     auto* asar = new QCheckBox(u8("启用 asar 补丁（备用，默认关）"));
     asar->setObjectName(QStringLiteral("asarPatchCheck"));
     layout->addWidget(asar);
-    layout->addStretch(1);
+
+    auto* statusBox = new QGroupBox(u8("启停状态与预览（dry-run）"));
+    auto* statusLayout = new QVBoxLayout(statusBox);
+    desktop_status_ = new QPlainTextEdit;
+    desktop_status_->setObjectName(QStringLiteral("desktopStatusPreview"));
+    desktop_status_->setReadOnly(true);
+    desktop_status_->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+    desktop_status_->setMinimumHeight(180);
+    auto font = desktop_status_->font();
+    font.setStyleHint(QFont::Monospace);
+    font.setFamily(QStringLiteral("monospace"));
+    desktop_status_->setFont(font);
+    statusLayout->addWidget(desktop_status_, 1);
+    auto* rowBtns = new QHBoxLayout;
+    auto* refresh = new QPushButton(u8("刷新 Desktop 状态"));
+    refresh->setObjectName(QStringLiteral("refreshDesktopStatusButton"));
+    auto* start = new QPushButton(u8("计划启动（dry-run）"));
+    start->setObjectName(QStringLiteral("startDesktopDryRunButton"));
+    auto* stop = new QPushButton(u8("计划停止（dry-run）"));
+    stop->setObjectName(QStringLiteral("stopDesktopDryRunButton"));
+    rowBtns->addWidget(refresh);
+    rowBtns->addWidget(start);
+    rowBtns->addWidget(stop);
+    rowBtns->addStretch(1);
+    statusLayout->addLayout(rowBtns);
+    layout->addWidget(statusBox, 1);
+    connect(refresh, &QPushButton::clicked, this, &SettingsWindow::onRefreshDesktopStatus);
+    connect(start, &QPushButton::clicked, this, &SettingsWindow::onStartDesktopDryRun);
+    connect(stop, &QPushButton::clicked, this, &SettingsWindow::onStopDesktopDryRun);
     connect(add, &QPushButton::clicked, this, &SettingsWindow::onAddExtraArg);
     connect(del, &QPushButton::clicked, this, &SettingsWindow::onRemoveExtraArg);
     return wrapScroll(page);
@@ -766,6 +795,7 @@ void SettingsWindow::syncFromSession() {
     refreshIpChangeStatus();
     refreshCompanionStatus();
     refreshVaultStatus();
+    refreshDesktopStatus();
 }
 
 bool SettingsWindow::harvestToSession(QString* error) {
@@ -1307,6 +1337,99 @@ void SettingsWindow::onRollbackVault() {
     statusBar()->showMessage(u8("已回滚到上一份盒子身份。"), 8000);
 }
 
+QString SettingsWindow::desktopStatusText() const {
+    return desktop_status_ ? desktop_status_->toPlainText() : QString{};
+}
+
+void SettingsWindow::refreshDesktopStatus() {
+    if (!desktop_status_) {
+        return;
+    }
+    const auto previous = session_;
+    QString error;
+    const bool harvested = harvestToSession(&error);
+    const auto planned = claudebox::desktop::plan(session_.config, session_.paths.prefix);
+    desktop_status_->setPlainText(
+        QString::fromStdString(claudebox::desktop::format_status(planned)));
+    if (!harvested && !error.isEmpty()) {
+        desktop_status_->appendPlainText(QString::fromUtf8("\n表单还未填完：") + error);
+    }
+    if (!harvested) {
+        session_ = previous;
+    }
+}
+
+void SettingsWindow::onRefreshDesktopStatus() {
+    refreshDesktopStatus();
+}
+
+bool SettingsWindow::startDesktopDryRun(QString* error) {
+    if (!harvestToSession(error)) {
+        return false;
+    }
+    const auto result = claudebox::desktop::start(session_.config, session_.paths.prefix, true);
+    if (desktop_status_) {
+        desktop_status_->setPlainText(
+            QString::fromStdString(claudebox::desktop::format_status(result.plan)));
+    }
+    if (result.started) {
+        if (error) {
+            *error = u8("dry-run 不应把 Desktop 标记为已启动");
+        }
+        return false;
+    }
+    if (!result.ok && result.plan.binary_found) {
+        if (error) {
+            *error = QString::fromStdString(result.error);
+        }
+        return false;
+    }
+    return true;
+}
+
+bool SettingsWindow::stopDesktopDryRun(QString* error) {
+    if (!harvestToSession(error)) {
+        return false;
+    }
+    const std::vector<claudebox::gateway::BoxProcess> fixture = {
+        {"claude-desktop", 101, true},
+        {"claude", 102, true},
+        {"firefox", 200, true},
+    };
+    const auto result = claudebox::desktop::stop(session_.config, fixture, true);
+    const auto planned = claudebox::desktop::plan(session_.config, session_.paths.prefix);
+    if (desktop_status_) {
+        desktop_status_->setPlainText(
+            QString::fromStdString(claudebox::desktop::format_status(planned, &result)));
+    }
+    if (!result.ok) {
+        if (error) {
+            *error = QString::fromStdString(result.error);
+        }
+        return false;
+    }
+    return true;
+}
+
+void SettingsWindow::onStartDesktopDryRun() {
+    QString error;
+    if (!startDesktopDryRun(&error)) {
+        statusBar()->showMessage(u8("启动计划失败：") + error, 8000);
+        return;
+    }
+    statusBar()->showMessage(u8("已生成启动计划（dry-run，未真正启动）。"), 8000);
+}
+
+void SettingsWindow::onStopDesktopDryRun() {
+    QString error;
+    if (!stopDesktopDryRun(&error)) {
+        statusBar()->showMessage(u8("停止计划失败：") + error, 8000);
+        return;
+    }
+    statusBar()->showMessage(u8("已生成停止计划（dry-run，未结束真实进程）。"), 8000);
+}
+
+
 
 bool SettingsWindow::openCompanionUrl(const QString& url, QString* error, bool dry_run) {
     const auto previous = session_;
@@ -1348,6 +1471,7 @@ void SettingsWindow::onSave() {
     refreshIpChangeStatus();
     refreshCompanionStatus();
     refreshVaultStatus();
+    refreshDesktopStatus();
 }
 
 void SettingsWindow::onReload() {
